@@ -94,7 +94,29 @@ stock_report_app/
 - Node.js 18+
 - npm 或 yarn
 
-### 后端启动
+### 方式一：一键启动（推荐）✨
+
+```bash
+# 赋予执行权限（仅需一次）
+chmod +x start.sh
+
+# 运行启动脚本
+./start.sh
+```
+
+**脚本会自动：**
+- ✅ 安装后端和前端依赖
+- ✅ 启动后端服务（端口 9000）
+- ✅ 启动前端服务（端口 6000）
+- ✅ **自动打开浏览器访问应用** 🎉
+
+详细说明请参考：[docs/STARTUP_GUIDE.md](./docs/STARTUP_GUIDE.md)
+
+---
+
+### 方式二：手动启动
+
+#### 后端启动
 
 ```bash
 cd backend
@@ -110,10 +132,10 @@ pip install -r requirements.txt
 cp .env.example .env
 
 # 启动服务
-uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --reload --port 9000
 ```
 
-访问 http://localhost:8000/docs 查看 API 文档
+访问 http://localhost:9000/docs 查看 API 文档
 
 ### 前端启动
 
@@ -127,11 +149,13 @@ npm install
 npm run dev
 ```
 
-访问 http://localhost:5173 使用应用
+访问 http://localhost:6000 使用应用
+
+**提示**：如果使用手动启动，需要自行在浏览器中打开 http://localhost:6000
 
 ### 使用示例
 
-1. 打开浏览器访问 http://localhost:5173
+1. 打开浏览器访问 http://localhost:6000
 2. 输入股票代码（如 `600519` 贵州茅台）
 3. 点击"开始分析"按钮
 4. 等待 3-5 秒，查看完整分析报告
@@ -172,12 +196,12 @@ npm run dev
 API_HOST=0.0.0.0
 API_PORT=8000
 DEBUG=True
-CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+CORS_ORIGINS=http://localhost:6000,http://127.0.0.1:6000
 ```
 
 ### 前端代理配置 (vite.config.ts)
 
-已配置自动转发 `/api` 请求到后端 `http://localhost:8000`
+已配置自动转发 `/api` 请求到后端 `http://localhost:9000`
 
 ## 📝 开发计划
 

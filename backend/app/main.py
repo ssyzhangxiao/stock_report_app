@@ -1,3 +1,14 @@
+import logging
+import sys
+
+# 必须在任何其他模块导入之前配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    stream=sys.stdout,
+    force=True  # 覆盖 uvicorn 的日志配置
+)
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .api import analysis
@@ -6,6 +17,8 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="上市公司自动分析报告 API",
@@ -41,3 +54,5 @@ if __name__ == "__main__":
     debug = os.getenv("DEBUG", "False").lower() == "true"
     
     uvicorn.run("app.main:app", host=host, port=port, reload=debug)
+
+logger.info("后端服务已成功启动！")
