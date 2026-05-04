@@ -1,31 +1,34 @@
-import React from 'react';
-import { Card, Table, Tabs, Typography } from 'antd';
+import React, { useMemo } from 'react';
+import { Card, Table, Tabs, Typography, Tag, Row, Col } from 'antd';
+import ReactECharts from 'echarts-for-react';
 import type { ColumnsType } from 'antd/es/table';
+import { FinancialIndicator, BalanceSheet, Cashflow, IncomeStatement } from '../../types/stock';
 
 const { Text } = Typography;
 
-interface FinancialIndicator {
-  [key: string]: any;
-}
-
-interface BalanceSheet {
-  [key: string]: any;
-}
-
-interface Cashflow {
-  [key: string]: any;
-}
+/** 同比变化箭头组件 */
+const YoY: React.FC<{ current: number; previous: number }> = ({ current, previous }) => {
+  if (!current || !previous) return null;
+  const pct = ((current - previous) / previous) * 100;
+  return (
+    <Tag color={pct >= 0 ? 'success' : 'error'} style={{ fontSize: 12, lineHeight: '16px', padding: '0 4px' }}>
+      {pct >= 0 ? '▲' : '▼'} {Math.abs(pct).toFixed(1)}%
+    </Tag>
+  );
+};
 
 interface DeepFinancialTableProps {
   financialIndicators: FinancialIndicator[];
   balanceSheet: BalanceSheet[];
   cashflow: Cashflow[];
+  incomeStatement?: IncomeStatement[];
 }
 
 const DeepFinancialTable: React.FC<DeepFinancialTableProps> = ({
   financialIndicators,
   balanceSheet,
-  cashflow
+  cashflow,
+  incomeStatement
 }) => {
   // 财务指标列定义
   const indicatorColumns: ColumnsType<FinancialIndicator> = [
@@ -42,7 +45,7 @@ const DeepFinancialTable: React.FC<DeepFinancialTableProps> = ({
       key: 'roe',
       width: 100,
       render: (value: number) => (
-        <Text style={{ color: value > 15 ? '#3f8600' : value < 5 ? '#cf1322' : undefined }}>
+        <Text style={{ color: value > 15 ? 'var(--color-down)' : value < 5 ? 'var(--color-up)' : undefined }}>
           {value?.toFixed(2) ?? 'N/A'}
         </Text>
       )
@@ -51,15 +54,21 @@ const DeepFinancialTable: React.FC<DeepFinancialTableProps> = ({
       title: '营收(亿)',
       dataIndex: '营业总收入(元)',
       key: 'revenue',
-      width: 120,
-      render: (value: number) => value ? (value / 1e8).toFixed(2) : 'N/A'
+      width: 150,
+      render: (value: number, _: any, idx: number) => {
+        const prev = (financialIndicators as any[])[idx + 1]?.['营业总收入(元)'];
+        return <span>{value ? (value / 1e8).toFixed(2) : 'N/A'} {value && prev ? <YoY current={value} previous={prev} /> : null}</span>;
+      }
     },
     {
       title: '净利润(亿)',
       dataIndex: '净利润(元)',
       key: 'profit',
-      width: 120,
-      render: (value: number) => value ? (value / 1e8).toFixed(2) : 'N/A'
+      width: 150,
+      render: (value: number, _: any, idx: number) => {
+        const prev = (financialIndicators as any[])[idx + 1]?.['净利润(元)'];
+        return <span>{value ? (value / 1e8).toFixed(2) : 'N/A'} {value && prev ? <YoY current={value} previous={prev} /> : null}</span>;
+      }
     },
     {
       title: '毛利率(%)',
@@ -81,7 +90,7 @@ const DeepFinancialTable: React.FC<DeepFinancialTableProps> = ({
       key: 'debtRatio',
       width: 120,
       render: (value: number) => (
-        <Text style={{ color: value > 70 ? '#cf1322' : undefined }}>
+        <Text style={{ color: value > 70 ? 'var(--color-up)' : undefined }}>
           {value?.toFixed(2) ?? 'N/A'}
         </Text>
       )
@@ -99,6 +108,26 @@ const DeepFinancialTable: React.FC<DeepFinancialTableProps> = ({
       key: 'eps',
       width: 100,
       render: (value: number) => value?.toFixed(2) ?? 'N/A'
+    },
+    {
+      title: 'TTM EPS',
+      key: 'ttm_eps',
+      width: 100,
+      render: (_: any, __: any, idx: number) => {
+        const fi = financialIndicators as any[];
+        // TTM = 当前累积EPS + (去年年报EPS - 去年同季EPS)
+        const curEps = fi[idx]?.['每股收益'] as number;
+        if (!curEps || fi.length < 4) return <Text type="secondary">--</Text>;
+        const fullYearRow = fi.find((r: any) => String(r['日期'] || '').includes('12-31'));
+        const sameQtrLastYear = fi.slice(idx + 4)[0]; // 4 rows back = same quarter last year
+        const lastYearEps = fullYearRow?.['每股收益'] as number;
+        const lastYearSame = sameQtrLastYear?.['每股收益'] as number;
+        if (lastYearEps && lastYearSame) {
+          const ttm = curEps + (lastYearEps - lastYearSame);
+          return <Text strong style={{ color: 'var(--color-primary)' }}>{ttm.toFixed(2)}</Text>;
+        }
+        return <Text type="secondary">--</Text>;
+      }
     }
   ];
 
@@ -156,7 +185,7 @@ const DeepFinancialTable: React.FC<DeepFinancialTableProps> = ({
       key: 'operateCashflow',
       width: 140,
       render: (value: number) => (
-        <Text style={{ color: value > 0 ? '#3f8600' : '#cf1322' }}>
+        <Text style={{ color: value > 0 ? 'var(--color-down)' : 'var(--color-up)' }}>
           {value ? (value / 1e8).toFixed(2) : 'N/A'}
         </Text>
       )
@@ -167,7 +196,7 @@ const DeepFinancialTable: React.FC<DeepFinancialTableProps> = ({
       key: 'investCashflow',
       width: 140,
       render: (value: number) => (
-        <Text style={{ color: value > 0 ? '#3f8600' : '#cf1322' }}>
+        <Text style={{ color: value > 0 ? 'var(--color-down)' : 'var(--color-up)' }}>
           {value ? (value / 1e8).toFixed(2) : 'N/A'}
         </Text>
       )
@@ -178,7 +207,7 @@ const DeepFinancialTable: React.FC<DeepFinancialTableProps> = ({
       key: 'financeCashflow',
       width: 140,
       render: (value: number) => (
-        <Text style={{ color: value > 0 ? '#3f8600' : '#cf1322' }}>
+        <Text style={{ color: value > 0 ? 'var(--color-down)' : 'var(--color-up)' }}>
           {value ? (value / 1e8).toFixed(2) : 'N/A'}
         </Text>
       )
@@ -187,13 +216,108 @@ const DeepFinancialTable: React.FC<DeepFinancialTableProps> = ({
       title: '现金净增加额(亿)',
       dataIndex: 'net_increase_in_cash',
       key: 'netCashIncrease',
-      width: 160,
+      width: 140,
       render: (value: number) => (
-        <Text style={{ color: value > 0 ? '#3f8600' : '#cf1322' }}>
+        <Text style={{ color: value > 0 ? 'var(--color-down)' : 'var(--color-up)' }}>
           {value ? (value / 1e8).toFixed(2) : 'N/A'}
         </Text>
       )
+    },
+    {
+      title: '自由现金流(亿)',
+      key: 'fcf',
+      width: 130,
+      render: (_: any, record: Cashflow) => {
+        const op = record.net_operate_cash_flow;
+        const inv = record.net_invest_cash_flow;
+        if (op != null && inv != null) {
+          const fcf = op + inv; // inv is negative for investments
+          return <Text style={{ color: fcf > 0 ? 'var(--color-down)' : 'var(--color-up)', fontWeight: 600 }}>{(fcf / 1e8).toFixed(2)}</Text>;
+        }
+        return <Text type="secondary">N/A</Text>;
+      }
     }
+  ];
+
+  const incomeStatementColumns: ColumnsType<IncomeStatement> = [
+    {
+      title: '报告期',
+      dataIndex: 'report_date',
+      key: 'date',
+      width: 120,
+      fixed: 'left'
+    },
+    {
+      title: '营业总收入(亿)',
+      dataIndex: 'total_operating_revenue',
+      key: 'total_rev',
+      width: 140,
+      render: (value: number) => value ? (value / 1e8).toFixed(2) : 'N/A'
+    },
+    {
+      title: '营业成本(亿)',
+      dataIndex: 'operating_cost',
+      key: 'cost',
+      width: 120,
+      render: (value: number) => value ? (value / 1e8).toFixed(2) : 'N/A'
+    },
+    {
+      title: '销售费用(亿)',
+      dataIndex: 'sales_expense',
+      key: 'sales',
+      width: 120,
+      render: (value: number) => value ? (value / 1e8).toFixed(2) : 'N/A'
+    },
+    {
+      title: '管理费用(亿)',
+      dataIndex: 'admin_expense',
+      key: 'admin',
+      width: 120,
+      render: (value: number) => value ? (value / 1e8).toFixed(2) : 'N/A'
+    },
+    {
+      title: '研发费用(亿)',
+      dataIndex: 'rnd_expense',
+      key: 'rnd',
+      width: 120,
+      render: (value: number) => value ? (value / 1e8).toFixed(2) : 'N/A'
+    },
+    {
+      title: '财务费用(亿)',
+      dataIndex: 'financial_expense',
+      key: 'finance',
+      width: 120,
+      render: (value: number) => value ? (value / 1e8).toFixed(2) : 'N/A'
+    },
+    {
+      title: '营业利润(亿)',
+      dataIndex: 'operating_profit',
+      key: 'op_profit',
+      width: 130,
+      render: (value: number) => (
+        <Text style={{ color: value >= 0 ? 'var(--color-down)' : 'var(--color-up)' }}>
+          {value ? (value / 1e8).toFixed(2) : 'N/A'}
+        </Text>
+      )
+    },
+    {
+      title: '净利润(亿)',
+      dataIndex: 'net_profit',
+      key: 'net_profit',
+      width: 120,
+      render: (value: number) => (
+        <Text style={{ color: value >= 0 ? 'var(--color-down)' : 'var(--color-up)' }}>
+          {value ? (value / 1e8).toFixed(2) : 'N/A'}
+        </Text>
+      )
+    },
+    {
+      title: '每股收益',
+      dataIndex: 'eps',
+      key: 'eps',
+      width: 100,
+      render: (value: number) => value?.toFixed(2) ?? 'N/A'
+    },
   ];
 
   const items = [
@@ -238,13 +362,59 @@ const DeepFinancialTable: React.FC<DeepFinancialTableProps> = ({
           size="small"
         />
       )
+    },
+    {
+      key: '4',
+      label: '📈 损益表',
+      children: (
+        <Table
+          columns={incomeStatementColumns}
+          dataSource={incomeStatement || []}
+          rowKey={(_, index) => `income_${index}`}
+          pagination={{ pageSize: 5, showSizeChanger: false }}
+          scroll={{ x: 1200 }}
+          size="small"
+        />
+      )
     }
   ];
 
+  // 营收/净利柱状图 + ROE折线 复合图表
+  const trendChart = useMemo(() => {
+    const fi = financialIndicators as any[];
+    if (!fi || fi.length < 2) return null;
+    const dates = fi.map(r => String(r['日期'] || '').slice(5)).reverse();
+    const revs = fi.map(r => { const v = r['营业总收入(元)']; return v ? +(v / 1e8).toFixed(1) : 0; }).reverse();
+    const profs = fi.map(r => { const v = r['净利润(元)']; return v ? +(v / 1e8).toFixed(1) : 0; }).reverse();
+    const roes = fi.map(r => { const v = r['净资产收益率(%)']; return v ? +v.toFixed(1) : 0; }).reverse();
+    return {
+      tooltip: { trigger: 'axis' as const },
+      legend: { data: ['营收', '净利', 'ROE'], bottom: 0, icon: 'roundRect', itemWidth: 10 },
+      grid: { left: 40, right: 8, top: 8, bottom: 28 },
+      xAxis: { type: 'category' as const, data: dates, axisLabel: { fontSize: 11 } },
+      yAxis: [
+        { type: 'value' as const, name: '亿元', nameTextStyle: { fontSize: 11 }, axisLabel: { fontSize: 11 }, splitLine: { lineStyle: { type: 'dashed' as const } } },
+        { type: 'value' as const, name: '%', nameTextStyle: { fontSize: 11 }, axisLabel: { fontSize: 11, formatter: '{value}%' }, splitLine: { show: false } },
+      ],
+      series: [
+        { type: 'bar' as const, data: revs, name: '营收', barWidth: '30%', itemStyle: { color: '#1890ff', borderRadius: [2, 2, 0, 0] } },
+        { type: 'bar' as const, data: profs, name: '净利', barWidth: '30%', itemStyle: { color: '#52c41a', borderRadius: [2, 2, 0, 0] } },
+        { type: 'line' as const, data: roes, name: 'ROE', yAxisIndex: 1, smooth: true, lineStyle: { width: 2, color: '#faad14' }, symbol: 'diamond', symbolSize: 6, areaStyle: { color: 'rgba(250,173,20,0.08)' } },
+      ],
+    };
+  }, [financialIndicators]);
+
   return (
-    <Card title="💹 财务数据分析" style={{ marginBottom: 24 }}>
-      <Tabs defaultActiveKey="1" items={items} />
-      <div style={{ marginTop: 16, padding: 12, backgroundColor: '#f5f5f5', borderRadius: 4 }}>
+    <Card title="💹 财务数据分析" style={{ marginBottom: 6 }} bodyStyle={{ padding: 8 }}>
+      {trendChart && (
+        <Row gutter={12} style={{ marginBottom: 6 }}>
+          <Col span={24}>
+            <ReactECharts option={trendChart} style={{ height: 85 }} opts={{ renderer: 'canvas' }} notMerge />
+          </Col>
+        </Row>
+      )}
+      <Tabs defaultActiveKey="1" items={items} size="small" />
+      <div style={{ marginTop: 6, padding: 6, backgroundColor: 'var(--bg-elevated)', borderRadius: 4 }}>
         <Text type="secondary" style={{ fontSize: 12 }}>
           💡 提示：ROE {'>'} 15% 为优秀，资产负债率 {'>'} 70% 需警惕，经营现金流为正表示健康
         </Text>

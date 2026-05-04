@@ -58,6 +58,8 @@ class DataSourceManager:
         sina = self._sources["sina"]
         em = self._sources["eastmoney"]
 
+        result = None
+
         # Step 1: 用新浪获取基础行情
         daily = sina.get_daily(symbol, years)
         if daily is not None:
@@ -67,25 +69,59 @@ class DataSourceManager:
             result = self._fill_advanced_data(result, symbol, em)
             # Step 3: 用自有数据重算PE/PB/市值（覆盖AI可能不准确的值）
             result = self._recalc_valuation(result, symbol)
+            # Step 4: 补充融资融券历史数据（已由EM并行批处理填充）
             result = self._clean_nan(result)
-            return result
 
         # Step 2: 新浪失败，尝试东财全量
-        daily = em.get_daily(symbol, years)
-        if daily is not None:
-            logger.info(f"[Auto] 行情来自东财")
-            return self._analyze_with(symbol, em, years)
+        if result is None:
+            daily = em.get_daily(symbol, years)
+            if daily is not None:
+                logger.info(f"[Auto] 行情来自东财")
+                result = self._analyze_with(symbol, em, years)
 
         # Step 3: 全部实时数据源失败，走 AI
-        logger.warning(f"[Auto] 实时数据源均不可用，尝试 AI")
-        for ai_name in ["qwen", "deepseek"]:
-            ai_ds = self._sources[ai_name]
-            if ai_ds.is_available():
-                result = self._analyze_with(symbol, ai_ds, years)
-                if result.get("data_source") != "unavailable":
-                    return result
+        if result is None:
+            logger.warning(f"[Auto] 实时数据源均不可用，尝试 AI")
+            for ai_name in ["qwen", "deepseek"]:
+                ai_ds = self._sources[ai_name]
+                if ai_ds.is_available():
+                    result = self._analyze_with(symbol, ai_ds, years)
+                    if result.get("data_source") != "unavailable":
+                        break
+            else:
+                return self._build_empty(symbol, "所有数据源均不可用")
 
-        return self._build_empty(symbol, "所有数据源均不可用")
+        # Step 5: 多源新闻聚合（网页搜索 + 网页抓取）
+        try:
+            from ..news_aggregator import get_news_aggregator
+            aggregator = get_news_aggregator()
+            existing_news = result.get("news_analysis", [])
+            enriched = aggregator.aggregate(symbol, existing_news)
+            result["news_analysis"] = enriched["news_analysis"]
+            result["web_search_results"] = enriched["web_search_results"]
+            result["web_fetch_results"] = enriched["web_fetch_results"]
+            result["sources_summary"] = enriched["sources_summary"]
+            logger.info(f"[Auto] Step 5: 多源新闻聚合完成, 共 {len(result['news_analysis'])} 条")
+        except Exception as e:
+            logger.warning(f"[Auto] 多源新闻聚合失败(不影响主流程): {e}")
+
+        return result
+
+    def _enrich_news(self, result: Dict[str, Any], symbol: str) -> Dict[str, Any]:
+        """用网页搜索+抓取丰富新闻数据"""
+        try:
+            from ..news_aggregator import get_news_aggregator
+            aggregator = get_news_aggregator()
+            existing_news = result.get("news_analysis", [])
+            enriched = aggregator.aggregate(symbol, existing_news)
+            result["news_analysis"] = enriched["news_analysis"]
+            result["web_search_results"] = enriched["web_search_results"]
+            result["web_fetch_results"] = enriched["web_fetch_results"]
+            result["sources_summary"] = enriched["sources_summary"]
+            logger.info(f"[Auto] Step 5: 多源新闻聚合完成, 共 {len(result['news_analysis'])} 条")
+        except Exception as e:
+            logger.warning(f"[Auto] 多源新闻聚合失败(不影响主流程): {e}")
+        return result
 
     def _fill_advanced_data(self, result: Dict[str, Any], symbol: str, em: DataSource) -> Dict[str, Any]:
         """东财+AI并发补全（EM和AI同时跑）"""
@@ -112,10 +148,15 @@ class DataSourceManager:
             if not result.get("analyst_consensus") or not result["analyst_consensus"].get("latest_rating"):
                 em_futures[pool.submit(lambda s=symbol: em.get_analyst_rating(s))] = "analyst"
 
-            # 同时提交AI任务
-            ai = self._get_ai_source()
-            if ai:
-                ai_future = pool.submit(ai.fetch_comprehensive_data, symbol)
+            # 融资融券历史数据（并发拉取）
+            mh_future = pool.submit(em.get_margin_history, symbol)
+
+            # AI数据源暂时禁用（LLM调用导致进程崩溃）
+            ai = None
+            ai_future = None
+            # ai = self._get_ai_source()
+            # if ai:
+            #     ai_future = pool.submit(ai.fetch_comprehensive_data, symbol)
 
             # 处理EM结果
             for future in concurrent.futures.as_completed(em_futures, timeout=_EM_TIMEOUT + 5):
@@ -126,10 +167,21 @@ class DataSourceManager:
                 except Exception:
                     pass
 
-            # 处理AI结果（EM跑完后AI可能还在跑，再等最多40s）
+            # 处理融资融券历史结果
+            try:
+                mh_data = mh_future.result(timeout=15)
+                if mh_data:
+                    ri = result.get("risk_indicators") or {"pledge_ratio": [], "cyq": [], "insider_holdings": [], "margin_balance": []}
+                    ri["margin_history"] = mh_data
+                    result["risk_indicators"] = ri
+                    logger.info(f"  [补全] margin_history {len(mh_data)} 条")
+            except Exception:
+                pass
+
+            # 处理AI结果（EM跑完后AI可能还在跑，再等最多20s）
             if ai_future:
                 try:
-                    ai_data = ai_future.result(timeout=65)
+                    ai_data = ai_future.result(timeout=20)
                     if ai_data:
                         self._apply_ai_fill(result, symbol, "ai_comprehensive", ai_data)
                         logger.info(f"  [AI降级] 成功 ✅")
@@ -161,14 +213,16 @@ class DataSourceManager:
         logger.info(f"[AI降级] 一次综合调用获取全量数据")
         data = None
         pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-        future = pool.submit(ai.fetch_comprehensive_data, symbol)
         try:
-            data = future.result(timeout=25)
-        except concurrent.futures.TimeoutError:
-            logger.warning(f"  [AI降级] 综合调用超时(25s)")
-        except Exception as e:
-            logger.warning(f"  [AI降级] 综合调用失败: {e}")
-        pool.shutdown(wait=False)
+            future = pool.submit(ai.fetch_comprehensive_data, symbol)
+            try:
+                data = future.result(timeout=25)
+            except concurrent.futures.TimeoutError:
+                logger.warning(f"  [AI降级] 综合调用超时(25s)")
+            except Exception as e:
+                logger.warning(f"  [AI降级] 综合调用失败: {e}")
+        finally:
+            pool.shutdown(wait=False)
         if data:
             self._apply_ai_fill(result, symbol, "ai_comprehensive", data)
 
@@ -373,11 +427,22 @@ class DataSourceManager:
             va_parts.append(f"PB{pb}倍")
         va_text = "，".join(va_parts) + "。" if va_parts else "结合当前市场估值水平进行判断。"
 
-        # 风险
-        rw_parts = [f"投资有风险，入市需谨慎。{name}"]
-        if pe and ind_pe and pe > ind_pe * 1.3:
-            rw_parts.append(f"估值高于行业平均30%以上")
-        rw_text = "。".join(rw_parts) + "。面临行业政策变化、市场竞争加剧等风险因素。"
+        # 风险（基于数据的动态风险提示）
+        rw_tags = []
+        if pe and ind_pe:
+            ratio = pe / ind_pe
+            if ratio > 2:
+                rw_tags.append(f"🔴 估值风险：PE{pe}倍为行业{ind_pe}倍的{ratio:.0f}倍，估值显著偏高")
+            elif ratio > 1.3:
+                rw_tags.append(f"🟠 估值风险：PE{pe}倍高于行业{ind_pe}倍约{((ratio-1)*100):.0f}%")
+            elif ratio < 0.7:
+                rw_tags.append(f"🟢 估值偏低：PE{pe}倍低于行业{ind_pe}倍，可能存在低估")
+            else:
+                rw_tags.append(f"估值处行业中等水平(PE{pe}倍 vs 行业{ind_pe}倍)")
+        else:
+            rw_tags.append("估值水平待评估")
+        rw_tags.append(f"控制权转让不确定性：需关注实际控制人意向、协议转让进展及监管审批")
+        rw_text = "；".join(rw_tags) + "。"
 
         summary = f"{name} - {ind}" if ind else f"{name} - 上市公司概况"
 
@@ -415,6 +480,8 @@ class DataSourceManager:
         balance = bal if isinstance(bal, pd.DataFrame) and not bal.empty else pd.DataFrame()
         cf = ds.get_cashflow(symbol)
         cashflow = cf if isinstance(cf, pd.DataFrame) and not cf.empty else pd.DataFrame()
+        is_ = ds.get_income_statement(symbol)
+        income_statement = is_ if isinstance(is_, pd.DataFrame) and not is_.empty else pd.DataFrame()
         insider = ds.get_insider_holdings(symbol)
         insider_df = insider if isinstance(insider, pd.DataFrame) and not insider.empty else pd.DataFrame()
         margin = ds.get_margin_balance(symbol)
@@ -450,6 +517,7 @@ class DataSourceManager:
                 "financial_indicators": financial.tail(5).to_dict(orient='records') if not financial.empty else [],
                 "balance_sheet": balance.head(3).to_dict(orient='records') if not balance.empty else [],
                 "cashflow": cashflow.head(3).to_dict(orient='records') if not cashflow.empty else [],
+                "income_statement": income_statement.head(3).to_dict(orient='records') if not income_statement.empty else [],
             },
             "news_analysis": news_classified,
             "analyst_consensus": analyst if isinstance(analyst, dict) else {},

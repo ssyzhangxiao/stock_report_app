@@ -31,8 +31,8 @@ interface AnalystConsensusCardProps {
 const AnalystConsensusCard: React.FC<AnalystConsensusCardProps> = ({ consensus, currentPrice }) => {
   if (consensus.error || !consensus.latest_rating) {
     return (
-      <Card title="👥 分析师评级" style={{ borderRadius: 12, marginBottom: 20 }}>
-        <div style={{ textAlign: 'center', padding: 40, color: '#999' }}>
+      <Card title="👥 分析师评级" style={{ borderRadius: 8, marginBottom: 0 }}>
+        <div style={{ textAlign: 'center', padding: 24, color: '#999' }}>
           {consensus.error || '暂无分析师评级数据'}
         </div>
       </Card>
@@ -65,22 +65,22 @@ const AnalystConsensusCard: React.FC<AnalystConsensusCardProps> = ({ consensus, 
         return `${d.日期}<br/>目标价: ¥${d.目标价}<br/>评级: ${d.评级}<br/>${d.机构}`;
       }
     },
-    grid: { left: '8%', right: '8%', top: 30, bottom: 40 },
+    grid: { left: '8%', right: '8%', top: 24, bottom: 32 },
     xAxis: {
       type: 'category' as const,
       data: history.map(d => d.日期.slice(5)),
-      axisLabel: { rotate: 45, fontSize: 10, interval: Math.floor(history.length / 6) },
+      axisLabel: { rotate: 45, fontSize: 11, interval: Math.floor(history.length / 6) },
     },
     yAxis: {
       type: 'value' as const,
       name: '目标价(元)',
-      nameTextStyle: { fontSize: 10 },
-      axisLabel: { fontSize: 10 },
+      nameTextStyle: { fontSize: 11 },
+      axisLabel: { fontSize: 11 },
       splitLine: { lineStyle: { type: 'dashed' as const } },
     },
     series: [{
       type: 'scatter' as const,
-      symbolSize: 10,
+      symbolSize: 8,
       data: history.map(d => d.目标价),
       itemStyle: {
         color: (params: any) => {
@@ -93,7 +93,7 @@ const AnalystConsensusCard: React.FC<AnalystConsensusCardProps> = ({ consensus, 
     ...(currentPrice ? {
       series: [{
         type: 'scatter' as const,
-        symbolSize: 10,
+        symbolSize: 8,
         data: history.map(d => d.目标价),
         itemStyle: {
           color: (params: any) => {
@@ -103,41 +103,41 @@ const AnalystConsensusCard: React.FC<AnalystConsensusCardProps> = ({ consensus, 
         },
         markLine: {
           silent: true,
-          data: [{ yAxis: currentPrice, label: { formatter: `现价 ${currentPrice}`, color: '#cf1322' } }],
-          lineStyle: { color: '#cf1322', type: 'dashed' as const },
+          data: [{ yAxis: currentPrice, label: { formatter: `现价 ${currentPrice}`, color: 'var(--color-up)' } }],
+          lineStyle: { color: 'var(--color-up)', type: 'dashed' as const },
         }
       }],
     } : {}),
   } : null;
 
   return (
-    <Card title="👥 分析师一致性预期" style={{ borderRadius: 12, marginBottom: 20 }}>
-      <Row gutter={16} style={{ marginBottom: 24 }}>
+    <Card title="👥 分析师一致性预期" style={{ borderRadius: 8, marginBottom: 0 }} bodyStyle={{ padding: 12 }}>
+      <Row gutter={12} style={{ marginBottom: 16 }}>
         <Col span={8}>
           <Statistic title="最新评级" value={consensus.latest_rating}
-            prefix={<Tag color={getRatingColor(consensus.latest_rating)}>{consensus.latest_rating}</Tag>}
-            valueStyle={{ fontSize: 18 }} />
+            prefix={<Tag color={getRatingColor(consensus.latest_rating)} style={{ fontSize: 11 }}>{consensus.latest_rating}</Tag>}
+            valueStyle={{ fontSize: 16 }} />
         </Col>
         <Col span={8}>
           <Statistic title="目标价" value={targetPrice} precision={2} suffix="元"
             valueStyle={{ color: '#1890ff' }} />
         </Col>
         <Col span={8}>
-          <Statistic title="评级日期" value={consensus.rating_date || 'N/A'} valueStyle={{ fontSize: 16 }} />
+          <Statistic title="评级日期" value={consensus.rating_date || 'N/A'} valueStyle={{ fontSize: 14 }} />
         </Col>
       </Row>
 
       {upside !== null && (
         <>
-          <Divider />
-          <Row gutter={16} style={{ marginBottom: 24 }}>
+          <Divider style={{ margin: '8px 0' }} />
+          <Row gutter={12} style={{ marginBottom: 16 }}>
             <Col span={12}>
               <Statistic title="当前价格" value={currentPrice} precision={2} suffix="元" />
             </Col>
             <Col span={12}>
               <Statistic title="上涨空间" value={parseFloat(upside)} precision={2} suffix="%"
                 prefix={parseFloat(upside) >= 0 ? <ArrowUpOutlined /> : <ArrowDownOutlined />}
-                valueStyle={{ color: parseFloat(upside) >= 0 ? '#cf1322' : '#3f8600', fontSize: 24, fontWeight: 'bold' }} />
+                valueStyle={{ color: parseFloat(upside) >= 0 ? '#cf1322' : '#3f8600', fontSize: 20, fontWeight: 'bold' }} />
             </Col>
           </Row>
         </>
@@ -145,21 +145,21 @@ const AnalystConsensusCard: React.FC<AnalystConsensusCardProps> = ({ consensus, 
 
       {hasScatter && (
         <>
-          <Divider />
-          <Title level={5} style={{ marginTop: 8 }}>📊 分析师目标价分布</Title>
-          <ReactECharts option={scatterOption!} style={{ height: 280, width: '100%' }}
+          <Divider style={{ margin: '8px 0' }} />
+          <Title level={5} style={{ marginTop: 4, fontSize: 13 }}>📊 分析师目标价分布</Title>
+          <ReactECharts option={scatterOption!} style={{ height: 240, width: '100%' }}
             opts={{ renderer: 'canvas' }} notMerge />
         </>
       )}
 
-      <Divider />
-      <Row gutter={16}>
-        <Col span={12}><Text type="secondary">股票代码：</Text><Text strong>{consensus.stock_code || 'N/A'}</Text></Col>
-        <Col span={12}><Text type="secondary">所属行业：</Text><Tag color="blue">{consensus.industry || 'N/A'}</Tag></Col>
+      <Divider style={{ margin: '8px 0' }} />
+      <Row gutter={12}>
+        <Col span={12}><Text type="secondary" style={{ fontSize: 11 }}>股票代码：</Text><Text strong>{consensus.stock_code || 'N/A'}</Text></Col>
+        <Col span={12}><Text type="secondary" style={{ fontSize: 11 }}>所属行业：</Text><Tag color="blue" style={{ fontSize: 11 }}>{consensus.industry || 'N/A'}</Tag></Col>
       </Row>
 
-      <div style={{ marginTop: 24, padding: 12, background: '#f5f5f5', borderRadius: 4 }}>
-        <Text type="secondary" style={{ fontSize: 12 }}>
+      <div style={{ marginTop: 16, padding: 10, background: 'var(--bg-elevated)', borderRadius: 4 }}>
+        <Text type="secondary" style={{ fontSize: 11 }}>
           ⚠️ 分析师评级仅供参考。绿色=买入，蓝色=增持，黄色=中性。虚线为当前股价。
         </Text>
       </div>

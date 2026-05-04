@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional, List
 
 from .base import DataSource
-from ..qwen_data_fetcher import get_qwen_fetcher
+from ..llm_service import get_llm_service
 
 logger = logging.getLogger(__name__)
 
@@ -13,12 +13,15 @@ _TODAY = datetime.now().strftime("%Y年%m月%d日")
 
 
 def _call_ai(prompt: str) -> Optional[Dict[str, Any]]:
-    """调用AI并提取JSON"""
-    qwen = get_qwen_fetcher()
-    if not qwen.is_available():
+    llm = get_llm_service()
+    if not llm.is_available():
         return None
     try:
-        content = qwen._call_qwen_api(prompt)
+        content = llm.call_llm(
+            system_prompt="你是一个专业的并购顾问和金融分析师。请基于你的知识给出专业、客观的分析。",
+            user_prompt=prompt,
+            use_json_mode=True,
+        )
         if not content:
             return None
         start = content.find("{")
@@ -32,18 +35,20 @@ def _call_ai(prompt: str) -> Optional[Dict[str, Any]]:
 
 
 def _call_ai_list(prompt: str) -> Optional[List]:
-    """调用AI并提取JSON数组"""
-    qwen = get_qwen_fetcher()
-    if not qwen.is_available():
+    llm = get_llm_service()
+    if not llm.is_available():
         return None
     try:
-        content = qwen._call_qwen_api(prompt)
+        content = llm.call_llm(
+            system_prompt="你是一个专业的并购顾问和金融分析师。请基于你的知识给出专业、客观的分析。",
+            user_prompt=prompt,
+            use_json_mode=True,
+        )
         if not content:
             return None
         start = content.find("[")
         end = content.rfind("]") + 1
         if start == -1 or end == 0:
-            # 尝试按字典方式解析
             start = content.find("{")
             end = content.rfind("}") + 1
             if start == -1 or end == 0:
@@ -70,8 +75,8 @@ class _BaseAIDataSource(DataSource):
     _provider: str = ""
 
     def is_available(self) -> bool:
-        qwen = get_qwen_fetcher()
-        return qwen.is_available()
+        llm = get_llm_service()
+        return llm.is_available()
 
     def get_daily(self, symbol: str, years: int = 2, adjust: str = "qfq") -> Optional:
         return None

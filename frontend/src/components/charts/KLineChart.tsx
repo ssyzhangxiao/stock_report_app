@@ -1,253 +1,97 @@
-import React, { useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import ReactECharts from 'echarts-for-react';
-import { Card } from 'antd';
-import { KLineData } from '../../api/stockApi';
+import { Card, Tag, Space } from 'antd';
+import { KLineData } from '../../types/stock';
 
-interface KLineChartProps {
-  data: KLineData[];
-  height?: number;
-}
+interface Props { data: KLineData[]; height?: number; }
 
-const KLineChart: React.FC<KLineChartProps> = ({ data, height = 600 }) => {
-  const option = useMemo(() => {
-    if (!data || data.length === 0) {
-      return {};
-    }
+const MA_LINES = [
+  { key: 'ma5', label: 'MA5', color: '#ff7f0e' },
+  { key: 'ma10', label: 'MA10', color: '#2ca02c' },
+  { key: 'ma20', label: 'MA20', color: '#1f77b4' },
+  { key: 'ma60', label: 'MA60', color: '#9467bd' },
+];
 
-    // 准备数据
-    const dates = data.map(item => item.date);
-    const values = data.map(item => [
-      item.open,
-      item.close,
-      item.low,
-      item.high
-    ]);
-    const volumes = data.map((item, index) => [
-      index,
-      item.volume,
-      item.open > item.close ? 1 : -1
-    ]);
+const KLineChart: React.FC<Props> = ({ data, height = 340 }) => {
+  const [activeMas, setActiveMas] = useState<string[]>(['ma5', 'ma10', 'ma20', 'ma60']);
 
-    const ma5Data = data.map(item => item.ma5 || null);
-    const ma20Data = data.map(item => item.ma20 || null);
-    const ma60Data = data.map(item => item.ma60 || null);
+  const { option, maValues } = useMemo(() => {
+    if (!data || data.length === 0) return { option: {}, maValues: {} as Record<string, number> };
+    const dates = data.map(d => d.date);
+    const values = data.map(d => [d.open, d.close, d.low, d.high]);
+    const volumes = data.map((d, i) => [i, d.volume, d.open > d.close ? 1 : -1]);
+
+    const maData: Record<string, (number | null)[]> = {};
+    MA_LINES.forEach(m => { maData[m.key] = data.map(d => (d as any)[m.key] || null); });
+
+    const last = data[data.length - 1];
+    const mv: Record<string, number> = {};
+    MA_LINES.forEach(m => { const v = (last as any)[m.key]; if (v != null) mv[m.key] = v; });
+
+    const series: any[] = [
+      {
+        name: '日K', type: 'candlestick', data: values,
+        itemStyle: { color: 'var(--color-up)', color0: '#3f8600', borderColor: '#cf1322', borderColor0: '#3f8600' },
+        markPoint: { data: [{ type: 'max', name: '最高' }, { type: 'min', name: '最低' }] }
+      },
+      {
+        name: '成交量', type: 'bar', xAxisIndex: 1, yAxisIndex: 1,
+        data: volumes.map(v => ({ value: v[1], itemStyle: { color: v[2] > 0 ? '#cf1322' : '#3f8600' } }))
+      },
+    ];
+    MA_LINES.forEach(m => {
+      if (activeMas.includes(m.key)) {
+        series.push({
+          name: m.label, type: 'line', data: maData[m.key], smooth: true,
+          lineStyle: { width: 1.5, color: m.color, opacity: 0.7 }, symbol: 'none'
+        });
+      }
+    });
 
     return {
-      animation: false,
-      legend: {
-        bottom: 10,
-        left: 'center',
-        data: ['日K', 'MA5', 'MA20', 'MA60']
-      },
-      tooltip: {
-        trigger: 'axis',
-        axisPointer: {
-          type: 'cross'
-        },
-        backgroundColor: 'rgba(255, 255, 255, 0.9)',
-        borderColor: '#ccc',
-        borderWidth: 1,
-        textStyle: {
-          color: '#333'
-        },
-        formatter: (params: any) => {
-          const item = params[0];
-          const dataIndex = item.dataIndex;
-          const stockData = data[dataIndex];
-          
-          if (!stockData) return '';
-          
-          const date = stockData.date;
-          const open = stockData.open.toFixed(2);
-          const close = stockData.close.toFixed(2);
-          const high = stockData.high.toFixed(2);
-          const low = stockData.low.toFixed(2);
-          const volume = (stockData.volume / 10000).toFixed(2) + '万';
-          const change = ((stockData.close - stockData.open) / stockData.open * 100).toFixed(2);
-          
-          return `
-            <div style="padding: 8px;">
-              <div style="font-weight: bold; margin-bottom: 8px;">${date.slice(2)}</div>
-              <div>开盘: ${open}</div>
-              <div>收盘: ${close}</div>
-              <div>最高: ${high}</div>
-              <div>最低: ${low}</div>
-              <div>成交量: ${volume}</div>
-              <div style="color: ${parseFloat(change) >= 0 ? '#cf1322' : '#3f8600'};">
-                涨跌幅: ${parseFloat(change) >= 0 ? '+' : ''}${change}%
-              </div>
-            </div>
-          `;
-        }
-      },
-      axisPointer: {
-        link: [{ xAxisIndex: 'all' }],
-        label: {
-          backgroundColor: '#777'
-        }
-      },
-      grid: [
-        {
-          left: '10%',
-          right: '8%',
-          height: '50%'
-        },
-        {
-          left: '10%',
-          right: '8%',
-          top: '63%',
-          height: '16%'
-        }
-      ],
-      xAxis: [
-        {
-          type: 'category',
-          data: dates,
-          scale: true,
-          boundaryGap: false,
-          axisLine: { onZero: false },
-          splitLine: { show: false },
-          splitNumber: 20,
-          min: 'dataMin',
-          max: 'dataMax',
-          axisLabel: {
-            rotate: 45,
-            fontSize: 10,
-            interval: Math.floor(dates.length / 10),
-            formatter: (val: string) => val.slice(2)
+      option: {
+        animation: false, backgroundColor: '#fff',
+        legend: { bottom: 0, left: 'center', data: ['日K', ...MA_LINES.filter(m => activeMas.includes(m.key)).map(m => m.label), '成交量'], itemWidth: 8, itemHeight: 8, fontSize: 11 },
+        tooltip: {
+          trigger: 'axis', axisPointer: { type: 'cross' },
+          formatter: (params: any[]) => {
+            const idx = params[0].dataIndex; const d = data[idx];
+            if (!d) return '';
+            const vol = (d.volume / 10000).toFixed(2);
+            const chg = (((d.close - d.open) / d.open) * 100).toFixed(2);
+            let html = `<div><b>${d.date.slice(2)}</b></div><div>开 ${d.open.toFixed(2)} 收 ${d.close.toFixed(2)}</div><div>高 ${d.high.toFixed(2)} 低 ${d.low.toFixed(2)}</div><div>量 ${vol}万 幅 ${chg}%</div>`;
+            MA_LINES.forEach(m => { const v = (d as any)[m.key]; if (v != null) html += `<div>${m.label} ${v.toFixed(2)}</div>`; });
+            return html;
           }
         },
-        {
-          type: 'category',
-          gridIndex: 1,
-          data: dates,
-          scale: true,
-          boundaryGap: false,
-          axisLine: { onZero: false },
-          axisTick: { show: false },
-          splitLine: { show: false },
-          axisLabel: { show: false },
-          min: 'dataMin',
-          max: 'dataMax'
-        }
-      ],
-      yAxis: [
-        {
-          scale: true,
-          splitArea: {
-            show: true
-          }
-        },
-        {
-          scale: true,
-          gridIndex: 1,
-          splitNumber: 2,
-          axisLabel: { show: false },
-          axisLine: { show: false },
-          axisTick: { show: false },
-          splitLine: { show: false }
-        }
-      ],
-      dataZoom: [
-        {
-          type: 'inside',
-          xAxisIndex: [0, 1],
-          start: 50,
-          end: 100
-        },
-        {
-          show: true,
-          xAxisIndex: [0, 1],
-          type: 'slider',
-          top: '85%',
-          start: 50,
-          end: 100
-        }
-      ],
-      series: [
-        {
-          name: '日K',
-          type: 'candlestick',
-          data: values,
-          itemStyle: {
-            color: '#cf1322',
-            color0: '#3f8600',
-            borderColor: '#cf1322',
-            borderColor0: '#3f8600'
-          },
-          markPoint: {
-            data: [
-              { type: 'max', name: '最大值' },
-              { type: 'min', name: '最小值' }
-            ]
-          }
-        },
-        {
-          name: 'MA5',
-          type: 'line',
-          data: ma5Data,
-          smooth: true,
-          lineStyle: {
-            opacity: 0.5
-          },
-          symbol: 'none'
-        },
-        {
-          name: 'MA20',
-          type: 'line',
-          data: ma20Data,
-          smooth: true,
-          lineStyle: {
-            opacity: 0.5
-          },
-          symbol: 'none'
-        },
-        {
-          name: 'MA60',
-          type: 'line',
-          data: ma60Data,
-          smooth: true,
-          lineStyle: {
-            opacity: 0.5
-          },
-          symbol: 'none'
-        },
-        {
-          name: '成交量',
-          type: 'bar',
-          xAxisIndex: 1,
-          yAxisIndex: 1,
-          data: volumes.map(item => ({
-            value: item[1],
-            itemStyle: {
-              color: item[2] > 0 ? '#cf1322' : '#3f8600'
-            }
-          }))
-        }
-      ]
+        grid: [{ left: '6%', right: '4%', top: '5%', height: '58%' }, { left: '6%', right: '4%', top: '68%', height: '16%' }],
+        xAxis: [{ type: 'category', data: dates, scale: true, boundaryGap: false, axisLabel: { rotate: 45, fontSize: 11, interval: Math.floor(dates.length / 8), formatter: (v: string) => v.slice(5) } },
+        { type: 'category', gridIndex: 1, data: dates, axisLabel: { show: false } }],
+        yAxis: [{ scale: true, splitArea: { show: true }, axisLabel: { fontSize: 11 } }, { scale: true, gridIndex: 1, show: false }],
+        dataZoom: [{ type: 'inside', xAxisIndex: [0, 1], start: 30, end: 100 },
+        { show: true, xAxisIndex: [0, 1], type: 'slider', top: '88%', start: 30, end: 100, height: 10 }],
+        series,
+      },
+      maValues: mv,
     };
-  }, [data]);
+  }, [data, activeMas]);
 
-  if (!data || data.length === 0) {
-    return (
-      <Card title="📈 K线图与技术分析">
-        <div style={{ textAlign: 'center', padding: 40, color: '#999' }}>
-          暂无数据
-        </div>
-      </Card>
-    );
-  }
+  if (!data || data.length === 0) return <Card>暂无数据</Card>;
 
   return (
-    <Card title="📈 K线图与技术分析" style={{ marginBottom: 24 }}>
-      <ReactECharts
-        option={option}
-        style={{ height: `${height}px`, width: '100%' }}
-        opts={{ renderer: 'canvas' }}
-        notMerge={true}
-        lazyUpdate={true}
-      />
-    </Card>
+    <div>
+      <Space size={[4, 4]} style={{ marginBottom: 6, flexWrap: 'wrap' }}>
+        {MA_LINES.map(m => (
+          <Tag key={m.key} color={activeMas.includes(m.key) ? undefined : 'default'}
+            style={{ cursor: 'pointer', fontSize: 11 }}
+            onClick={() => setActiveMas(prev => prev.includes(m.key) ? prev.filter(k => k !== m.key) : [...prev, m.key])}>
+            {m.label} {maValues[m.key] != null ? maValues[m.key].toFixed(1) : '--'}
+          </Tag>
+        ))}
+        <Tag color="default" style={{ fontSize: 11 }}>最新 {data[data.length - 1]?.close.toFixed(2) ?? '--'}</Tag>
+      </Space>
+      <ReactECharts option={option} style={{ height }} opts={{ renderer: 'canvas' }} notMerge lazyUpdate />
+    </div>
   );
 };
 

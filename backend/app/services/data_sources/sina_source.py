@@ -6,6 +6,7 @@ from typing import Dict, Any, Optional, Callable
 import logging
 import time
 import concurrent.futures
+import atexit
 
 from .base import DataSource
 
@@ -15,6 +16,7 @@ _spot_cache = {"data": None, "time": 0.0}
 _SPOT_CACHE_TTL = 180
 
 _SINA_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="sina_fin")
+atexit.register(_SINA_POOL.shutdown, wait=False)
 
 
 def _fetch(func: Callable, timeout: int):
@@ -179,6 +181,34 @@ class SinaDataSource(DataSource):
                     '投资活动产生的现金流量净额': 'net_invest_cash_flow',
                     '筹资活动产生的现金流量净额': 'net_finance_cash_flow',
                     '现金及现金等价物净增加额': 'net_increase_in_cash',
+                }
+                df.rename(columns=col_map, inplace=True, errors='ignore')
+                return df
+            return None
+        except Exception:
+            return None
+
+    def get_income_statement(self, symbol: str) -> Optional[pd.DataFrame]:
+        try:
+            df = _fetch(lambda: ak.stock_financial_report_sina(stock=symbol, symbol="利润表"), 10)
+            if isinstance(df, pd.DataFrame) and not df.empty:
+                col_map = {
+                    '报告日': 'report_date',
+                    '营业总收入': 'total_operating_revenue',
+                    '营业收入': 'operating_revenue',
+                    '营业总成本': 'total_operating_cost',
+                    '营业成本': 'operating_cost',
+                    '销售费用': 'sales_expense',
+                    '管理费用': 'admin_expense',
+                    '财务费用': 'financial_expense',
+                    '研发费用': 'rnd_expense',
+                    '营业利润': 'operating_profit',
+                    '利润总额': 'total_profit',
+                    '净利润': 'net_profit',
+                    '归属于母公司所有者的净利润': 'net_profit_parent',
+                    '每股收益': 'eps',
+                    '基本每股收益': 'basic_eps',
+                    '稀释每股收益': 'diluted_eps',
                 }
                 df.rename(columns=col_map, inplace=True, errors='ignore')
                 return df

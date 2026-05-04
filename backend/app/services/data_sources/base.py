@@ -40,6 +40,9 @@ class DataSource(ABC):
     def get_cashflow(self, symbol: str) -> Optional[pd.DataFrame]:
         return None
 
+    def get_income_statement(self, symbol: str) -> Optional[pd.DataFrame]:
+        return None
+
     def get_insider_holdings(self, symbol: str) -> Optional[pd.DataFrame]:
         return None
 

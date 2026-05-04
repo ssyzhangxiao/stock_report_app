@@ -1,15 +1,16 @@
 import akshare as ak
 import pandas as pd
 from datetime import datetime, timedelta
-from typing import Dict, Any, Optional, Callable
+from typing import Dict, Any, Optional, Callable, List
 import logging
 import concurrent.futures
+import atexit
 
 from .base import DataSource
 
 logger = logging.getLogger(__name__)
 
-_EM_TIMEOUT = 25  # 每个东财API调用的超时秒数
+_EM_TIMEOUT = 15
 
 
 def _is_sse_stock(symbol: str) -> bool:
@@ -21,6 +22,7 @@ def _is_szse_stock(symbol: str) -> bool:
 
 
 _executor = concurrent.futures.ThreadPoolExecutor(max_workers=4, thread_name_prefix="em_fetch")
+atexit.register(_executor.shutdown, wait=False)
 
 
 def _fetch(func: Callable, timeout: int = _EM_TIMEOUT):
@@ -109,6 +111,14 @@ class EastMoneyDataSource(DataSource):
             logger.warning(f"[东财] 获取 {symbol} 现金流量表失败: {e}")
             return None
 
+    def get_income_statement(self, symbol: str) -> Optional[pd.DataFrame]:
+        try:
+            result = _fetch(lambda: ak.stock_profit_sheet_by_report_em(symbol=symbol))
+            return result if isinstance(result, pd.DataFrame) and not result.empty else None
+        except Exception as e:
+            logger.warning(f"[东财] 获取 {symbol} 利润表失败: {e}")
+            return None
+
     def get_insider_holdings(self, symbol: str) -> Optional[pd.DataFrame]:
         try:
             if _is_sse_stock(symbol):
@@ -119,6 +129,42 @@ class EastMoneyDataSource(DataSource):
         except Exception as e:
             logger.warning(f"[东财] 获取 {symbol} 高管持股失败: {e}")
             return None
+
+    def get_margin_history(self, symbol: str, days: int = 10) -> Optional[List]:
+        """获取个股融资融券日度历史（用于折线图）"""
+        if not _is_sse_stock(symbol) and not _is_szse_stock(symbol):
+            return None
+        base = datetime.now()
+        dates = [(base - timedelta(days=i)).strftime('%Y%m%d') for i in range(1, days + 1)][:5]
+        rows = []
+        seen = set()
+        for d in dates:
+            if d in seen:
+                continue
+            seen.add(d)
+            try:
+                if _is_sse_stock(symbol):
+                    df = _fetch(lambda date=d: ak.stock_margin_detail_sse(date=date), timeout=5)
+                else:
+                    df = _fetch(lambda date=d: ak.stock_margin_detail_szse(date=date), timeout=5)
+                if df is None or not isinstance(df, pd.DataFrame) or df.empty:
+                    continue
+                code_col = [c for c in df.columns if '标的证券代码' in c][:1]
+                if not code_col:
+                    continue
+                sub = df[df[code_col[0]].astype(str).str.strip() == symbol]
+                if not sub.empty:
+                    row = sub.iloc[0]
+                    rows.append({
+                        "日期": d[:4] + "-" + d[4:6] + "-" + d[6:],
+                        "融资余额": float(row.get('融资余额', 0)),
+                        "融券余量": float(row.get('融券余量', 0)),
+                    })
+                    if len(rows) >= days:
+                        break
+            except Exception:
+                continue
+        return rows if len(rows) >= 3 else None
 
     def get_margin_balance(self, symbol: str) -> Optional[pd.DataFrame]:
         try:

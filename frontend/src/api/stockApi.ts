@@ -1,4 +1,13 @@
 import axios from 'axios';
+import type {
+  StockAnalysisResponse,
+  SmartAnalysisResult,
+  LLMProvidersResponse,
+  ControlStatus,
+  DexterResult,
+  DexterHealthResponse,
+  PeerCompany,
+} from '../types/stock';
 
 const api = axios.create({
   baseURL: '/api',
@@ -10,7 +19,9 @@ const api = axios.create({
 
 api.interceptors.request.use(
   (config) => {
-    console.log('API Request:', config.method?.toUpperCase(), config.url);
+    if (import.meta.env.DEV) {
+      console.log('API Request:', config.method?.toUpperCase(), config.url);
+    }
     return config;
   },
   (error) => {
@@ -23,8 +34,6 @@ api.interceptors.response.use(
     return response.data;
   },
   (error) => {
-    console.error('API Error:', error.message);
-
     const errorData = error.response?.data;
     let message = '请求失败，请稍后重试';
 
@@ -34,118 +43,21 @@ api.interceptors.response.use(
       } else if (errorData.message) {
         message = errorData.message;
       } else if (errorData.detail) {
-        message = errorData.detail;
+        if (typeof errorData.detail === 'string') {
+          message = errorData.detail;
+        } else if (errorData.detail.message) {
+          message = errorData.detail.message;
+        }
       }
+    }
+
+    if (import.meta.env.DEV) {
+      console.error('API Error:', message);
     }
 
     return Promise.reject(new Error(message));
   }
 );
-
-export interface KLineData {
-  date: string;
-  open: number;
-  close: number;
-  high: number;
-  low: number;
-  volume: number;
-  ma5?: number;
-  ma20?: number;
-  ma60?: number;
-}
-
-export interface SmartAnalysis {
-  available: boolean;
-  error?: string;
-  data_source?: string;
-  fundamental_analysis?: string;
-  technical_analysis?: string;
-  valuation_analysis?: string;
-  risk_warning?: string;
-  capital_analysis?: string;
-  investment_advice?: {
-    score: number;
-    suggestion: string;
-    target_price: string;
-    stop_loss: string;
-    position_advice: string;
-  };
-  summary?: string;
-  raw_analysis?: string;
-  generated_at?: string;
-  // 新增字段：风险指标监控
-  risk_indicators_monitor?: {
-    pledge_ratio_analysis?: string;
-    chip_distribution?: string;
-    insider_holdings?: string;
-    margin_trading?: string;
-  };
-  // 新增字段：资金流向分析
-  fund_flow_analysis?: {
-    main_force_flow?: string;
-    retail_flow?: string;
-    north_south_flow?: string;
-  };
-  // 新增字段：新闻舆情
-  news_sentiment?: {
-    overall_sentiment?: string;
-    key_news_impact?: string;
-    policy_impact?: string;
-  };
-  // 新增字段：分析师评级详情
-  analyst_rating_details?: {
-    consensus_rating?: string;
-    rating_trend?: string;
-    target_price_range?: string;
-  };
-  // 新增字段：手工风险分析
-  manual_risk_analysis?: {
-    overall_risk_level?: string;
-    risk_score?: number;
-    key_risk_factors?: string[];
-    technical_risk_view?: string;
-    fundamental_risk_view?: string;
-    market_sentiment_view?: string;
-    investment_strategy?: string;
-    additional_notes?: string;
-  };
-}
-
-export interface StockAnalysisResponse {
-  symbol: string;
-  company_info: Record<string, any>;
-  latest_price: number | null;
-  technical: Record<string, any>;
-  valuation: Record<string, any>;
-  deep_financial: Record<string, any>;
-  news_analysis: Array<{
-    title: string;
-    content: string;
-    publish_time: string;
-    source: string;
-    sentiment: 'positive' | 'negative' | 'neutral';
-  }>;
-  analyst_consensus: {
-    stock_code?: string;
-    stock_name?: string;
-    latest_rating?: string;
-    target_price?: number;
-    rating_date?: string;
-    industry?: string;
-    error?: string;
-  };
-  risk_indicators: {
-    pledge_ratio: Array<Record<string, any>>;
-    cyq: Array<Record<string, any>>;
-    insider_holdings: Array<Record<string, any>>;
-    margin_balance: Array<Record<string, any>>;
-  };
-  fund_flow: Array<Record<string, any>>;
-  history: KLineData[];
-  smart_analysis: SmartAnalysis;
-  data_source?: string;
-  timestamp: string;
-}
 
 export const getStockAnalysis = async (
   symbol: string,
@@ -160,6 +72,85 @@ export const getStockAnalysis = async (
 export const healthCheck = async (): Promise<{ status: string }> => {
   const response = await api.get('/analysis/health');
   return response as unknown as { status: string };
+};
+
+export const getSmartAnalysis = async (
+  symbol: string,
+  years: number = 2
+): Promise<SmartAnalysisResult> => {
+  const response = await api.get(`/analysis/smart-analyze/${symbol}`, {
+    params: { years },
+  });
+  return response as unknown as SmartAnalysisResult;
+};
+
+export const getLLMProviders = async (): Promise<LLMProvidersResponse> => {
+  const response = await api.get('/analysis/llm-providers');
+  return response as unknown as LLMProvidersResponse;
+};
+
+export const getControlStatus = async (symbol: string): Promise<ControlStatus> => {
+  const response = await api.get(`/analysis/control-status/${symbol}`, { timeout: 90000 });
+  return response as unknown as ControlStatus;
+};
+
+export const checkDexterHealth = async (): Promise<DexterHealthResponse> => {
+  const response = await api.get('/analysis/dexter/health');
+  return response as unknown as DexterHealthResponse;
+};
+
+export const runDexterDCF = async (symbol: string, name?: string): Promise<DexterResult> => {
+  const response = await api.post(`/analysis/dexter/dcf/${symbol}`, null, {
+    params: name ? { name } : {},
+  });
+  return response as unknown as DexterResult;
+};
+
+export const runDexterXSentiment = async (symbol: string, name?: string): Promise<DexterResult> => {
+  const response = await api.post(`/analysis/dexter/x-sentiment/${symbol}`, null, {
+    params: name ? { name } : {},
+  });
+  return response as unknown as DexterResult;
+};
+
+export const runDexterInsider = async (symbol: string, name?: string): Promise<DexterResult> => {
+  const response = await api.post(`/analysis/dexter/insider/${symbol}`, null, {
+    params: name ? { name } : {},
+  });
+  return response as unknown as DexterResult;
+};
+
+export const runDexterReport = async (symbol: string, name?: string): Promise<DexterResult> => {
+  const response = await api.post(`/analysis/dexter/report/${symbol}`, null, {
+    params: name ? { name } : {},
+  });
+  return response as unknown as DexterResult;
+};
+
+// 获取可比公司列表
+export interface PeerCompaniesResponse {
+  symbol: string;
+  industry: string;
+  companies: PeerCompany[];
+}
+
+export const getPeerCompanies = async (symbol: string): Promise<PeerCompaniesResponse> => {
+  const response = await api.get(`/analysis/peer-companies/${symbol}`);
+  return response as unknown as PeerCompaniesResponse;
+};
+
+// 获取新闻聚合数据
+export interface NewsAggregateResponse {
+  symbol: string;
+  news: any[];
+  web_search_results: any[];
+  web_fetch_results: any[];
+  sources_summary?: any;
+}
+
+export const getNewsAggregate = async (symbol: string): Promise<NewsAggregateResponse> => {
+  const response = await api.get(`/analysis/news-aggregate/${symbol}`);
+  return response as unknown as NewsAggregateResponse;
 };
 
 export default api;

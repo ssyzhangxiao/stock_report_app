@@ -12,6 +12,7 @@ logging.basicConfig(
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .api import analysis
+from .api import openbb_apps
 import uvicorn
 import os
 from dotenv import load_dotenv
@@ -22,15 +23,15 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="上市公司自动分析报告 API",
-    description="基于 AkShare 的股票深度分析服务",
-    version="1.0.0"
+    description="基于 AkShare 的股票深度分析服务 · Skills驱动LLM · OpenBB Workspace集成",
+    version="2.0.0"
 )
 
-# CORS 配置
-cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
+# CORS 配置 - 允许 OpenBB Workspace 和前端访问
+cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:6003,http://127.0.0.1:6900").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -38,6 +39,8 @@ app.add_middleware(
 
 # 注册路由
 app.include_router(analysis.router)
+app.include_router(openbb_apps.router)
+app.include_router(openbb_apps.root_router)
 
 
 @app.get("/")
