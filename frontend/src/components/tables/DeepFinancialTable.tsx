@@ -383,40 +383,99 @@ const DeepFinancialTable: React.FC<DeepFinancialTableProps> = ({
   const trendChart = useMemo(() => {
     const fi = financialIndicators as any[];
     if (!fi || fi.length < 2) return null;
-    const dates = fi.map(r => String(r['日期'] || '').slice(5)).reverse();
-    const revs = fi.map(r => { const v = r['营业总收入(元)']; return v ? +(v / 1e8).toFixed(1) : 0; }).reverse();
-    const profs = fi.map(r => { const v = r['净利润(元)']; return v ? +(v / 1e8).toFixed(1) : 0; }).reverse();
-    const roes = fi.map(r => { const v = r['净资产收益率(%)']; return v ? +v.toFixed(1) : 0; }).reverse();
+
+    // 只保留年报数据（12-31）
+    const annualData = fi.filter(r => {
+      const dateStr = String(r['日期'] || '');
+      return dateStr.includes('12-31');
+    });
+
+    if (annualData.length < 2) {
+      // 如果年报数据不足，回退到原始数据
+      const dates = fi.map(r => String(r['日期'] || '').slice(0, 7)).reverse();
+      const revs = fi.map(r => { const v = r['营业总收入(元)']; return v ? +(v / 1e8).toFixed(1) : 0; }).reverse();
+      const profs = fi.map(r => { const v = r['净利润(元)']; return v ? +(v / 1e8).toFixed(1) : 0; }).reverse();
+      const roes = fi.map(r => { const v = r['净资产收益率(%)']; return v ? +v.toFixed(1) : 0; }).reverse();
+
+      return {
+        tooltip: {
+          trigger: 'axis' as const,
+          formatter: (params: any) => {
+            let result = `${params[0].axisValue}<br/>`;
+            params.forEach((p: any) => {
+              if (p.seriesName === 'ROE') {
+                result += `${p.marker}${p.seriesName}: ${p.value.toFixed(1)}%<br/>`;
+              } else {
+                result += `${p.marker}${p.seriesName}: ¥${p.value.toFixed(1)}亿<br/>`;
+              }
+            });
+            return result;
+          }
+        },
+        legend: { data: ['营收', '净利', 'ROE'], bottom: 2, icon: 'roundRect', itemWidth: 10, itemHeight: 8, fontSize: 11 },
+        grid: { left: 50, right: 20, top: 20, bottom: 40 },
+        xAxis: { type: 'category' as const, data: dates, axisLabel: { fontSize: 10 } },
+        yAxis: [
+          { type: 'value' as const, name: '亿元', nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 }, splitLine: { lineStyle: { type: 'dashed' as const } } },
+          { type: 'value' as const, name: '%', nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10, formatter: '{value}%' }, splitLine: { show: false } },
+        ],
+        series: [
+          { type: 'bar' as const, data: revs, name: '营收', barWidth: '30%', itemStyle: { color: '#1890ff', borderRadius: [2, 2, 0, 0] } },
+          { type: 'bar' as const, data: profs, name: '净利', barWidth: '30%', itemStyle: { color: '#52c41a', borderRadius: [2, 2, 0, 0] } },
+          { type: 'line' as const, data: roes, name: 'ROE', yAxisIndex: 1, smooth: true, lineStyle: { width: 2, color: '#2f54eb' }, symbol: 'diamond', symbolSize: 6, itemStyle: { color: '#2f54eb' }, areaStyle: { color: 'rgba(47,84,235,0.08)' } },
+        ],
+      };
+    }
+
+    // 使用年报数据
+    const dates = annualData.map(r => String(r['日期'] || '').slice(0, 4)).reverse();
+    const revs = annualData.map(r => { const v = r['营业总收入(元)']; return v ? +(v / 1e8).toFixed(1) : 0; }).reverse();
+    const profs = annualData.map(r => { const v = r['净利润(元)']; return v ? +(v / 1e8).toFixed(1) : 0; }).reverse();
+    const roes = annualData.map(r => { const v = r['净资产收益率(%)']; return v ? +v.toFixed(1) : 0; }).reverse();
+
     return {
-      tooltip: { trigger: 'axis' as const },
-      legend: { data: ['营收', '净利', 'ROE'], bottom: 0, icon: 'roundRect', itemWidth: 10 },
-      grid: { left: 40, right: 8, top: 8, bottom: 28 },
-      xAxis: { type: 'category' as const, data: dates, axisLabel: { fontSize: 11 } },
+      tooltip: {
+        trigger: 'axis' as const,
+        formatter: (params: any) => {
+          let result = `${params[0].axisValue}年<br/>`;
+          params.forEach((p: any) => {
+            if (p.seriesName === 'ROE') {
+              result += `${p.marker}${p.seriesName}: ${p.value.toFixed(1)}%<br/>`;
+            } else {
+              result += `${p.marker}${p.seriesName}: ¥${p.value.toFixed(1)}亿<br/>`;
+            }
+          });
+          return result;
+        }
+      },
+      legend: { data: ['营收', '净利', 'ROE'], bottom: 2, icon: 'roundRect', itemWidth: 10, itemHeight: 8, fontSize: 11 },
+      grid: { left: 50, right: 20, top: 20, bottom: 40 },
+      xAxis: { type: 'category' as const, data: dates, axisLabel: { fontSize: 10 } },
       yAxis: [
-        { type: 'value' as const, name: '亿元', nameTextStyle: { fontSize: 11 }, axisLabel: { fontSize: 11 }, splitLine: { lineStyle: { type: 'dashed' as const } } },
-        { type: 'value' as const, name: '%', nameTextStyle: { fontSize: 11 }, axisLabel: { fontSize: 11, formatter: '{value}%' }, splitLine: { show: false } },
+        { type: 'value' as const, name: '亿元', nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 }, splitLine: { lineStyle: { type: 'dashed' as const } } },
+        { type: 'value' as const, name: '%', nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10, formatter: '{value}%' }, splitLine: { show: false } },
       ],
       series: [
         { type: 'bar' as const, data: revs, name: '营收', barWidth: '30%', itemStyle: { color: '#1890ff', borderRadius: [2, 2, 0, 0] } },
         { type: 'bar' as const, data: profs, name: '净利', barWidth: '30%', itemStyle: { color: '#52c41a', borderRadius: [2, 2, 0, 0] } },
-        { type: 'line' as const, data: roes, name: 'ROE', yAxisIndex: 1, smooth: true, lineStyle: { width: 2, color: '#faad14' }, symbol: 'diamond', symbolSize: 6, areaStyle: { color: 'rgba(250,173,20,0.08)' } },
+        { type: 'line' as const, data: roes, name: 'ROE', yAxisIndex: 1, smooth: true, lineStyle: { width: 2, color: '#2f54eb' }, symbol: 'diamond', symbolSize: 6, itemStyle: { color: '#2f54eb' }, areaStyle: { color: 'rgba(47,84,235,0.08)' } },
       ],
     };
   }, [financialIndicators]);
 
   return (
-    <Card title="💹 财务数据分析" style={{ marginBottom: 6 }} bodyStyle={{ padding: 8 }}>
+    <Card title="💹 财务数据分析" style={{ marginBottom: 6 }} bodyStyle={{ padding: 12 }}>
       {trendChart && (
-        <Row gutter={12} style={{ marginBottom: 6 }}>
+        <Row gutter={12} style={{ marginBottom: 12 }}>
           <Col span={24}>
-            <ReactECharts option={trendChart} style={{ height: 85 }} opts={{ renderer: 'canvas' }} notMerge />
+            <ReactECharts option={trendChart} style={{ height: 180 }} opts={{ renderer: 'canvas' }} notMerge />
           </Col>
         </Row>
       )}
       <Tabs defaultActiveKey="1" items={items} size="small" />
-      <div style={{ marginTop: 6, padding: 6, backgroundColor: 'var(--bg-elevated)', borderRadius: 4 }}>
+      <div style={{ marginTop: 12, padding: 10, backgroundColor: 'var(--bg-elevated)', borderRadius: 4 }}>
         <Text type="secondary" style={{ fontSize: 12 }}>
-          💡 提示：ROE {'>'} 15% 为优秀，资产负债率 {'>'} 70% 需警惕，经营现金流为正表示健康
+          💡 提示：图表仅展示年度数据（12-31年报），ROE {'>'} 15% 为优秀，资产负债率 {'>'} 70% 需警惕
         </Text>
       </div>
     </Card>

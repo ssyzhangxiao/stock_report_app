@@ -10,6 +10,8 @@ export interface WidgetConfig {
   y: number;
   w: number;
   h: number;
+  /** 组件所需数据字段，用于智能加载和降级展示 */
+  requiredData?: string[];
   state?: {
     chartView?: {
       enabled: boolean;
@@ -47,12 +49,10 @@ export const QUICK_OVERVIEW_MODE: AnalysisModeTemplate = {
       name: '概览',
       description: '股票核心信息一览',
       layout: [
-        { i: 'kline-chart', x: 0, y: 0, w: 40, h: 22 },
-        { i: 'valuation-comparison', x: 0, y: 22, w: 20, h: 14 },
-        { i: 'analyst-consensus', x: 20, y: 22, w: 20, h: 14 },
-        { i: 'fund-flow', x: 0, y: 36, w: 20, h: 12 },
-        { i: 'news-section', x: 20, y: 36, w: 20, h: 12 },
-        { i: 'market-sentiment', x: 0, y: 48, w: 20, h: 12 }
+        { i: 'company-profile', x: 0, y: 0, w: 40, h: 26, requiredData: ['company_info'] },
+        { i: 'kline-chart', x: 0, y: 26, w: 40, h: 22, requiredData: ['history'] },
+        { i: 'valuation-comparison', x: 0, y: 48, w: 20, h: 14, requiredData: ['valuation', 'latest_price'] },
+        { i: 'analyst-consensus', x: 20, y: 48, w: 20, h: 14, requiredData: ['analyst_consensus', 'latest_price'] },
       ]
     },
     'news': {
@@ -60,7 +60,7 @@ export const QUICK_OVERVIEW_MODE: AnalysisModeTemplate = {
       name: '新闻舆情',
       description: '最新资讯和市场情绪',
       layout: [
-        { i: 'news-section', x: 0, y: 0, w: 40, h: 24 },
+        { i: 'news-section', x: 0, y: 0, w: 40, h: 24, requiredData: ['news_analysis'] },
         { i: 'market-sentiment', x: 0, y: 24, w: 20, h: 12 },
         { i: 'industry-news', x: 20, y: 24, w: 20, h: 12 },
         { i: 'news-hot-topics', x: 0, y: 36, w: 40, h: 10 }
@@ -75,6 +75,14 @@ export const QUICK_OVERVIEW_MODE: AnalysisModeTemplate = {
         { i: 'main-force-flow', x: 0, y: 18, w: 20, h: 14 },
         { i: 'dragon-tiger-list', x: 20, y: 18, w: 20, h: 14 },
         { i: 'northbound-flow', x: 0, y: 32, w: 40, h: 12 }
+      ]
+    },
+    'unified-data': {
+      id: 'unified-data',
+      name: '五层数据',
+      description: '统一数据获取：行情/研报/新闻/基础/公告',
+      layout: [
+        { i: 'unified-data-panel', x: 0, y: 0, w: 40, h: 40, requiredData: ['symbol'] }
       ]
     }
   }
@@ -92,10 +100,10 @@ export const DEEP_ANALYSIS_MODE: AnalysisModeTemplate = {
       name: '估值分析',
       description: '多模型估值对比',
       layout: [
-        { i: 'kline-chart', x: 0, y: 0, w: 40, h: 18 },
-        { i: 'valuation-comparison', x: 0, y: 18, w: 20, h: 15 },
-        { i: 'peer-comparison', x: 20, y: 18, w: 20, h: 15 },
-        { i: 'sensitivity-heatmap', x: 0, y: 33, w: 40, h: 15 },
+        { i: 'kline-chart', x: 0, y: 0, w: 40, h: 18, requiredData: ['history'] },
+        { i: 'valuation-comparison', x: 0, y: 18, w: 20, h: 15, requiredData: ['valuation', 'latest_price'] },
+        { i: 'peer-comparison', x: 20, y: 18, w: 20, h: 15, requiredData: ['symbol'] },
+        { i: 'sensitivity-heatmap', x: 0, y: 33, w: 40, h: 15, requiredData: ['latest_price'] },
         { i: 'dcf-valuation', x: 0, y: 48, w: 40, h: 12 }
       ]
     },
@@ -104,7 +112,7 @@ export const DEEP_ANALYSIS_MODE: AnalysisModeTemplate = {
       name: '财务分析',
       description: '深度财务数据挖掘',
       layout: [
-        { i: 'deep-financial-table', x: 0, y: 0, w: 40, h: 25 },
+        { i: 'deep-financial-table', x: 0, y: 0, w: 40, h: 25, requiredData: ['deep_financial'] },
         { i: 'financial-indicators', x: 0, y: 25, w: 20, h: 12 },
         { i: 'financial-trend', x: 20, y: 25, w: 20, h: 12 },
         { i: 'profitability-analysis', x: 0, y: 37, w: 40, h: 15 }
@@ -115,10 +123,9 @@ export const DEEP_ANALYSIS_MODE: AnalysisModeTemplate = {
       name: '风险分析',
       description: '风险指标监控',
       layout: [
-        { i: 'risk-dashboard', x: 0, y: 0, w: 40, h: 18 },
-        { i: 'risk-indicators-panel', x: 0, y: 18, w: 24, h: 12 },
-        { i: 'manual-risk-editor', x: 24, y: 18, w: 16, h: 12 },
-        { i: 'risk-score-card', x: 0, y: 30, w: 40, h: 12 }
+        { i: 'risk-score-card', x: 0, y: 0, w: 40, h: 24 },
+        { i: 'risk-indicators-panel', x: 0, y: 24, w: 24, h: 12, requiredData: ['risk_indicators'] },
+        { i: 'manual-risk-editor', x: 24, y: 24, w: 16, h: 12, requiredData: ['symbol', 'smart_analysis'] }
       ]
     },
     'technical': {
@@ -126,9 +133,9 @@ export const DEEP_ANALYSIS_MODE: AnalysisModeTemplate = {
       name: '技术指标',
       description: '技术分析工具',
       layout: [
-        { i: 'kline-chart', x: 0, y: 0, w: 40, h: 20 },
+        { i: 'kline-chart', x: 0, y: 0, w: 40, h: 20, requiredData: ['history'] },
         { i: 'technical-indicators', x: 0, y: 20, w: 20, h: 14 },
-        { i: 'fund-flow', x: 20, y: 20, w: 20, h: 14 },
+        { i: 'fund-flow', x: 20, y: 20, w: 20, h: 14, requiredData: ['fund_flow'] },
         { i: 'macd-analysis', x: 0, y: 34, w: 20, h: 12 },
         { i: 'kdj-analysis', x: 20, y: 34, w: 20, h: 12 }
       ]
@@ -148,10 +155,9 @@ export const RISK_DILIGENCE_MODE: AnalysisModeTemplate = {
       name: '风险仪表盘',
       description: '核心风险指标概览',
       layout: [
-        { i: 'kline-chart', x: 0, y: 0, w: 40, h: 18 },
-        { i: 'risk-dashboard', x: 0, y: 18, w: 40, h: 18 },
-        { i: 'risk-score-card', x: 0, y: 36, w: 20, h: 12 },
-        { i: 'risk-heatmap', x: 20, y: 36, w: 20, h: 12 }
+        { i: 'kline-chart', x: 0, y: 0, w: 40, h: 18, requiredData: ['history'] },
+        { i: 'risk-score-card', x: 0, y: 18, w: 40, h: 24 },
+        { i: 'risk-heatmap', x: 0, y: 42, w: 40, h: 12 }
       ]
     },
     'deep-financial': {
@@ -159,9 +165,9 @@ export const RISK_DILIGENCE_MODE: AnalysisModeTemplate = {
       name: '深度财务',
       description: '财务风险深度挖掘',
       layout: [
-        { i: 'deep-financial-table', x: 0, y: 0, w: 40, h: 28 },
+        { i: 'deep-financial-table', x: 0, y: 0, w: 40, h: 28, requiredData: ['deep_financial'] },
         { i: 'financial-risk-indicators', x: 0, y: 28, w: 40, h: 12 },
-        { i: 'sensitivity-heatmap', x: 0, y: 40, w: 40, h: 15 },
+        { i: 'sensitivity-heatmap', x: 0, y: 40, w: 40, h: 15, requiredData: ['latest_price'] },
         { i: 'cashflow-risk', x: 0, y: 55, w: 40, h: 12 }
       ]
     },
@@ -170,7 +176,7 @@ export const RISK_DILIGENCE_MODE: AnalysisModeTemplate = {
       name: '风险指标',
       description: '各类风险监控指标',
       layout: [
-        { i: 'risk-indicators-panel', x: 0, y: 0, w: 40, h: 15 },
+        { i: 'risk-indicators-panel', x: 0, y: 0, w: 40, h: 15, requiredData: ['risk_indicators'] },
         { i: 'pledge-risk', x: 0, y: 15, w: 20, h: 14 },
         { i: 'margin-risk', x: 20, y: 15, w: 20, h: 14 },
         { i: 'insider-trading', x: 0, y: 29, w: 20, h: 12 },
@@ -182,8 +188,8 @@ export const RISK_DILIGENCE_MODE: AnalysisModeTemplate = {
       name: '风险报告',
       description: '风险评估报告生成',
       layout: [
-        { i: 'manual-risk-editor', x: 0, y: 0, w: 40, h: 20 },
-        { i: 'news-section', x: 0, y: 20, w: 40, h: 18 },
+        { i: 'manual-risk-editor', x: 0, y: 0, w: 40, h: 20, requiredData: ['symbol', 'smart_analysis'] },
+        { i: 'news-section', x: 0, y: 20, w: 40, h: 18, requiredData: ['news_analysis'] },
         { i: 'risk-summary', x: 0, y: 38, w: 20, h: 12 },
         { i: 'risk-recommendations', x: 20, y: 38, w: 20, h: 12 }
       ]

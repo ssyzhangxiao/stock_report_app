@@ -35,9 +35,12 @@ const PeerComparison: React.FC<PeerComparisonProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('marketCap');
 
-  // 从API获取可比公司数据
+  // 如果有companies数据，直接使用，不调用API
+  const hasCompaniesData = companies && companies.length > 0;
+
+  // 从API获取可比公司数据（仅当没有提供companies时）
   useEffect(() => {
-    if (symbol && !companies) {
+    if (symbol && !hasCompaniesData) {
       const fetchPeerCompanies = async () => {
         setLoading(true);
         setError(null);
@@ -54,7 +57,7 @@ const PeerComparison: React.FC<PeerComparisonProps> = ({
       };
       fetchPeerCompanies();
     }
-  }, [symbol, companies]);
+  }, [symbol, hasCompaniesData]);
 
   // 计算中位数
   const calculateMedian = (data: number[]): number => {
@@ -64,10 +67,8 @@ const PeerComparison: React.FC<PeerComparisonProps> = ({
   };
 
   const getChartOption = (type: 'marketCap' | 'peRatio' | 'pbRatio') => {
-    // 按目标值排序
+    // 按数值大小降序排序，最长的在最上面
     const sortedCompanies = [...peerCompanies].sort((a, b) => {
-      if (a.isTarget) return -1;
-      if (b.isTarget) return 1;
       return b[type] - a[type];
     });
 
@@ -210,7 +211,7 @@ const PeerComparison: React.FC<PeerComparisonProps> = ({
 
   return (
     <Card title={title} style={{ marginBottom: 16 }}>
-      {error && (
+      {error && !hasCompaniesData && (
         <Alert
           message={error}
           type="warning"
@@ -219,7 +220,7 @@ const PeerComparison: React.FC<PeerComparisonProps> = ({
         />
       )}
 
-      <Spin spinning={loading}>
+      <Spin spinning={loading && !hasCompaniesData}>
         <Row gutter={16} style={{ marginBottom: 16 }}>
           <Col span={8}>
             <Statistic

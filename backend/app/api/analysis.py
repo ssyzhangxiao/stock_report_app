@@ -7,6 +7,7 @@ from ..utils.validators import validate_api_input
 from ..services.llm_service import get_llm_service
 from ..services.smart_analysis_service import get_smart_analysis_service
 from ..services.dexter_client import get_dexter_client
+from ..services.dcf_calculator import dcf_calculator
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/analysis", tags=["analysis"])
@@ -504,6 +505,260 @@ async def get_peer_companies(symbol: str):
         logger.error(f"获取可比公司失败: {e}")
         logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"获取可比公司失败: {str(e)}")
+
+
+@router.get("/unified/market/{symbol}")
+async def unified_market_data(symbol: str, include_kline: bool = Query(True), kline_days: int = Query(60, ge=1, le=365)):
+    """统一行情数据：mootdx实时 + 腾讯财经估值"""
+    try:
+        validated = validate_api_input(symbol, 2)
+        symbol = validated["symbol"]
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"参数错误: {e}")
+
+    from starlette.concurrency import run_in_threadpool
+    from ..services.data_sources.unified import get_unified_acquisition
+
+    def _do():
+        ua = get_unified_acquisition()
+        return ua.get_market_data(symbol, include_kline=include_kline, kline_days=kline_days)
+
+    result = await run_in_threadpool(_do)
+    return {
+        "symbol": symbol,
+        "success": result.success,
+        "source": result.source,
+        "status": result.status.value,
+        "data": result.data,
+        "metadata": result.metadata,
+        "error": result.error,
+    }
+
+
+@router.get("/unified/research/{symbol}")
+async def unified_research(symbol: str, include_iwencai: bool = Query(False)):
+    """统一研报数据：东财研报 + 一致预期 + iwencai"""
+    try:
+        validated = validate_api_input(symbol, 2)
+        symbol = validated["symbol"]
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"参数错误: {e}")
+
+    from starlette.concurrency import run_in_threadpool
+    from ..services.data_sources.unified import get_unified_acquisition
+
+    def _do():
+        ua = get_unified_acquisition()
+        return ua.get_research(symbol, include_iwencai=include_iwencai)
+
+    result = await run_in_threadpool(_do)
+    return {
+        "symbol": symbol,
+        "success": result.success,
+        "source": result.source,
+        "status": result.status.value,
+        "data": result.data,
+        "metadata": result.metadata,
+        "error": result.error,
+    }
+
+
+@router.get("/unified/news/{symbol}")
+async def unified_news(symbol: str, include_global: bool = Query(False)):
+    """统一新闻数据：个股新闻 + 财联社快讯 + 全球资讯"""
+    try:
+        validated = validate_api_input(symbol, 2)
+        symbol = validated["symbol"]
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"参数错误: {e}")
+
+    from starlette.concurrency import run_in_threadpool
+    from ..services.data_sources.unified import get_unified_acquisition
+
+    def _do():
+        ua = get_unified_acquisition()
+        return ua.get_news(symbol, include_global=include_global)
+
+    result = await run_in_threadpool(_do)
+    return {
+        "symbol": symbol,
+        "success": result.success,
+        "source": result.source,
+        "status": result.status.value,
+        "data": result.data,
+        "metadata": result.metadata,
+        "error": result.error,
+    }
+
+
+@router.get("/unified/financials/{symbol}")
+async def unified_financials(symbol: str):
+    """统一基础数据：mootdx F10季报 + 公司概况 + 股东 + akshare财务"""
+    try:
+        validated = validate_api_input(symbol, 2)
+        symbol = validated["symbol"]
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"参数错误: {e}")
+
+    from starlette.concurrency import run_in_threadpool
+    from ..services.data_sources.unified import get_unified_acquisition
+
+    def _do():
+        ua = get_unified_acquisition()
+        return ua.get_financials(symbol)
+
+    result = await run_in_threadpool(_do)
+    return {
+        "symbol": symbol,
+        "success": result.success,
+        "source": result.source,
+        "status": result.status.value,
+        "data": result.data,
+        "metadata": result.metadata,
+        "error": result.error,
+    }
+
+
+@router.get("/unified/announcements/{symbol}")
+async def unified_announcements(symbol: str):
+    """统一公告数据：巨潮cninfo + akshare公告"""
+    try:
+        validated = validate_api_input(symbol, 2)
+        symbol = validated["symbol"]
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"参数错误: {e}")
+
+    from starlette.concurrency import run_in_threadpool
+    from ..services.data_sources.unified import get_unified_acquisition
+
+    def _do():
+        ua = get_unified_acquisition()
+        return ua.get_announcements(symbol)
+
+    result = await run_in_threadpool(_do)
+    return {
+        "symbol": symbol,
+        "success": result.success,
+        "source": result.source,
+        "status": result.status.value,
+        "data": result.data,
+        "metadata": result.metadata,
+        "error": result.error,
+    }
+
+
+@router.get("/unified/all/{symbol}")
+async def unified_all(symbol: str):
+    """统一获取全部五层数据"""
+    try:
+        validated = validate_api_input(symbol, 2)
+        symbol = validated["symbol"]
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"参数错误: {e}")
+
+    from starlette.concurrency import run_in_threadpool
+    from ..services.data_sources.unified import get_unified_acquisition
+
+    def _do():
+        ua = get_unified_acquisition()
+        results = ua.get_all(symbol)
+        return {
+            name: {
+                "success": r.success,
+                "source": r.source,
+                "status": r.status.value,
+                "data": r.data,
+                "metadata": r.metadata,
+                "error": r.error,
+            }
+            for name, r in results.items()
+        }
+
+    return await run_in_threadpool(_do)
+
+
+@router.get("/dcf/{symbol}")
+async def calculate_dcf(symbol: str):
+    """计算 DCF 估值并生成敏感性分析矩阵"""
+    try:
+        validated = validate_api_input(symbol, 2)
+        symbol = validated["symbol"]
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"参数错误: {e}")
+
+    try:
+        from starlette.concurrency import run_in_threadpool
+
+        def _do_calculate():
+            manager = get_source_manager()
+            
+            # 获取股票数据
+            stock_data = manager.analyze(symbol, source="auto", years=5)
+            
+            # 获取当前价格
+            current_price = stock_data.get("latest_price", 100)
+            if not current_price or current_price <= 0:
+                current_price = 100
+            
+            # 准备财务数据
+            financial_data = {
+                "cashflow": stock_data.get("cashflow"),
+                "balance_sheet": stock_data.get("balance_sheet"),
+                "income_statement": stock_data.get("income_statement"),
+                "company_info": stock_data.get("company_info", {}),
+                "valuation": stock_data.get("valuation", {}),
+            }
+            
+            # 计算 DCF
+            result = dcf_calculator.calculate(
+                symbol=symbol,
+                current_price=current_price,
+                financial_data=financial_data
+            )
+            
+            if not result:
+                # 返回默认数据
+                return {
+                    "symbol": symbol,
+                    "current_price": current_price,
+                    "fair_value": 100,
+                    "upside_potential": 0,
+                    "downside_potential": 0,
+                    "wacc": 10,
+                    "terminal_growth": 3,
+                    "sensitivity_matrix": [
+                        [100, 110, 120, 130, 140],
+                        [90, 100, 110, 120, 130],
+                        [80, 90, 100, 110, 120],
+                        [70, 80, 90, 100, 110],
+                        [60, 70, 80, 90, 100],
+                    ],
+                    "wacc_values": [8, 9, 10, 11, 12],
+                    "growth_values": [1, 2, 3, 4, 5],
+                    "using_default": True,
+                }
+            
+            return {
+                "symbol": symbol,
+                "current_price": current_price,
+                "fair_value": round(result.fair_value, 2),
+                "upside_potential": round(result.upside_potential, 2),
+                "downside_potential": round(result.downside_potential, 2),
+                "wacc": round(result.wacc, 2),
+                "terminal_growth": round(result.terminal_growth, 2),
+                "sensitivity_matrix": [[round(x, 2) for x in row] for row in result.sensitivity_matrix],
+                "wacc_values": result.wacc_values,
+                "growth_values": result.growth_values,
+                "using_default": result.using_default,
+            }
+
+        return await run_in_threadpool(_do_calculate)
+
+    except Exception as e:
+        import traceback
+        logger.error(f"DCF 计算失败: {e}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"DCF 计算失败: {str(e)}")
 
 
 @router.get("/health")

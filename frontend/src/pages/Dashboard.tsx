@@ -3,32 +3,18 @@ import { Input, Button, Spin, message, Card, Row, Col, Typography, Alert, Space,
 import { SearchOutlined, DownloadOutlined, RiseOutlined, FallOutlined } from '@ant-design/icons';
 import { getSmartAnalysis } from '../api/stockApi';
 import type { StockAnalysisResponse, SmartAnalysisResult } from '../types/stock';
-import KLineChart from '../components/charts/KLineChart';
-import DeepFinancialTable from '../components/tables/DeepFinancialTable';
-import RiskIndicatorsPanel from '../components/panels/RiskIndicatorsPanel';
-import FundFlowCard from '../components/cards/FundFlowCard';
-import NewsSection from '../components/panels/NewsSection';
-import AnalystConsensusCard from '../components/cards/AnalystConsensusCard';
-import ManualRiskEditor from '../components/editors/ManualRiskEditor';
 import EnhancedAnalysis from '../components/cards/EnhancedAnalysis';
 import { exportToPDF } from '../utils/exportPDF';
 import { exportToHTML } from '../utils/exportHTML';
 import ThemeToggle from '../components/theme/ThemeToggle';
 import { useTheme } from '../contexts/ThemeContext';
 
-// 新功能导入
 import { initSkills, skillExecutor, SkillExecutionResult } from '../skills';
 import { AnalysisModeSelector, ProgressTracker, ReportTemplateSelector } from '../components/analysis';
 import type { ReportTemplateType } from '../utils/reportTemplates';
-import {
-  SensitivityHeatmap,
-  RiskDashboard,
-  ValuationComparison,
-  PeerComparison
-} from '../components/charts';
 import { getAnalysisModeById } from '../utils/analysisModeTemplates';
-import MATechnicalAnalysis from '../components/panels/MATechnicalAnalysis';
-import RiskScoreCard from '../components/cards/RiskScoreCard';
+
+import { registerAllWidgets, DynamicWidgetRenderer, widgetRegistry } from '../widgets';
 
 const { Title, Text } = Typography;
 
@@ -85,9 +71,10 @@ const Dashboard: React.FC = () => {
 
   const today = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
 
-  // 初始化技能系统
+  // 初始化技能系统和Widget组件
   useEffect(() => {
     initSkills();
+    registerAllWidgets();
   }, []);
 
   // 当选中的模式改变时，设置默认标签页
@@ -101,149 +88,18 @@ const Dashboard: React.FC = () => {
     }
   }, [selectedMode]);
 
-  // Widget占位组件
-  const PlaceholderWidget = ({ title, description }: { title: string; description: string }) => (
-    <div style={{ padding: '40px 20px', textAlign: 'center', color: '#8c8c8c' }}>
-      <div style={{ fontSize: 24, marginBottom: 8 }}>🔧</div>
-      <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>{title}</div>
-      <div style={{ fontSize: 13 }}>{description}</div>
-    </div>
-  );
-
-  // Widget渲染组件
+  // Widget渲染 - 使用动态组件渲染器替代固化switch-case
   const renderWidget = (widgetId: string) => {
     if (!data) return null;
-
-    switch (widgetId) {
-      case 'kline-chart':
-        return data.history && data.history.length > 0 ? (
-          <KLineChart data={data.history} height={400} />
-        ) : null;
-      case 'valuation-comparison':
-        return (
-          <ValuationComparison
-            models={[
-              { name: 'PE估值', value: (data.valuation.industry_pe || 20) * (data.valuation.pe_ratio || 80) / 100 },
-              { name: '行业平均', value: (data.valuation.industry_pe || 20) * (data.latest_price || 100) / 100 },
-              { name: 'PB估值', value: (data.valuation.pb_ratio || 5) * (data.latest_price || 100) / 5 },
-            ]}
-            currentPrice={data.latest_price ?? undefined}
-            title="估值对比"
-          />
-        );
-      case 'peer-comparison':
-        return <PeerComparison symbol={data.symbol} />;
-      case 'risk-dashboard':
-        return <RiskDashboard />;
-      case 'deep-financial-table':
-        return (
-          <DeepFinancialTable
-            financialIndicators={data.deep_financial.financial_indicators || []}
-            balanceSheet={data.deep_financial.balance_sheet || []}
-            cashflow={data.deep_financial.cashflow || []}
-            incomeStatement={data.deep_financial.income_statement || []}
-          />
-        );
-      case 'fund-flow':
-        return <FundFlowCard fundFlow={data.fund_flow || []} />;
-      case 'news-section':
-        return <NewsSection news={data.news_analysis || []} sourcesSummary={data.sources_summary} />;
-      case 'analyst-consensus':
-        return (
-          <AnalystConsensusCard
-            consensus={data.analyst_consensus || {}}
-            currentPrice={data.latest_price ?? undefined}
-          />
-        );
-      case 'risk-indicators-panel':
-        return (
-          <RiskIndicatorsPanel
-            pledgeRatio={data.risk_indicators?.pledge_ratio || []}
-            cyq={data.risk_indicators?.cyq || []}
-            insiderHoldings={data.risk_indicators?.insider_holdings || []}
-            marginBalance={data.risk_indicators?.margin_balance || []}
-            marginHistory={data.risk_indicators?.margin_history}
-          />
-        );
-      case 'manual-risk-editor':
-        return (
-          <ManualRiskEditor
-            symbol={data.symbol}
-            aiAnalysis={data.smart_analysis?.manual_risk_analysis}
-            onSave={() => { message.success('风险分析已保存'); }}
-          />
-        );
-      case 'sensitivity-heatmap':
-        return (
-          <SensitivityHeatmap
-            data={{
-              waccValues: [8, 9, 10, 11, 12],
-              growthValues: [1, 2, 3, 4, 5],
-              matrix: [
-                [100, 110, 120, 130, 140],
-                [90, 100, 110, 120, 130],
-                [80, 90, 100, 110, 120],
-                [70, 80, 90, 100, 110],
-                [60, 70, 80, 90, 100],
-              ],
-              currentValue: data.latest_price || 100,
-            }}
-          />
-        );
-      // 新增widget的占位组件
-      case 'ma-technical-analysis':
-        return <MATechnicalAnalysis />;
-      case 'market-sentiment':
-        return <PlaceholderWidget title="市场情绪" description="市场情绪指数和舆情分析" />;
-      case 'industry-news':
-        return <PlaceholderWidget title="行业新闻" description="相关行业资讯汇总" />;
-      case 'fund-flow-chart':
-        return <PlaceholderWidget title="资金流向图" description="历史资金流向趋势图" />;
-      case 'main-force-flow':
-        return <PlaceholderWidget title="主力资金" description="主力资金动向分析" />;
-      case 'dragon-tiger-list':
-        return <PlaceholderWidget title="龙虎榜" description="龙虎榜数据展示" />;
-      case 'financial-indicators':
-        return <PlaceholderWidget title="财务指标" description="核心财务指标概览" />;
-      case 'financial-trend':
-        return <PlaceholderWidget title="财务趋势" description="财务数据趋势分析" />;
-      case 'technical-indicators':
-        return <MATechnicalAnalysis />;
-      case 'risk-score-card':
-        return <RiskScoreCard />;
-      case 'financial-risk-indicators':
-        return <PlaceholderWidget title="财务风险指标" description="财务风险监控指标" />;
-      case 'pledge-risk':
-        return <PlaceholderWidget title="股权质押风险" description="股权质押风险分析" />;
-      case 'margin-risk':
-        return <PlaceholderWidget title="融资融券风险" description="融资融券风险监控" />;
-      case 'risk-summary':
-        return <PlaceholderWidget title="风险总结" description="风险评估总结报告" />;
-      case 'news-hot-topics':
-        return <PlaceholderWidget title="新闻热点" description="相关新闻热点话题汇总" />;
-      case 'northbound-flow':
-        return <PlaceholderWidget title="北向资金" description="北向资金流向数据" />;
-      case 'dcf-valuation':
-        return <PlaceholderWidget title="DCF估值" description="现金流折现估值分析" />;
-      case 'profitability-analysis':
-        return <PlaceholderWidget title="盈利能力分析" description="ROE、毛利率等指标" />;
-      case 'macd-analysis':
-        return <PlaceholderWidget title="MACD分析" description="MACD指标趋势分析" />;
-      case 'kdj-analysis':
-        return <PlaceholderWidget title="KDJ分析" description="KDJ指标超买超卖分析" />;
-      case 'risk-heatmap':
-        return <PlaceholderWidget title="风险热力图" description="多维度风险热力图" />;
-      case 'cashflow-risk':
-        return <PlaceholderWidget title="现金流风险" description="现金流风险分析" />;
-      case 'insider-trading':
-        return <PlaceholderWidget title="内幕交易" description="高管增减持情况" />;
-      case 'legal-risk':
-        return <PlaceholderWidget title="法律风险" description="法律诉讼风险分析" />;
-      case 'risk-recommendations':
-        return <PlaceholderWidget title="风险建议" description="风控建议和应对策略" />;
-      default:
-        return <PlaceholderWidget title={widgetId} description="该功能正在开发中" />;
-    }
+    console.log('renderWidget 被调用 widgetId:', widgetId, 'data.symbol:', data.symbol);
+    return (
+      <DynamicWidgetRenderer
+        widgetId={widgetId}
+        data={data}
+        smartAnalysis={smartAnalysisData}
+        theme={theme}
+      />
+    );
   };
 
   const handleAnalyze = async () => {
@@ -327,6 +183,7 @@ const Dashboard: React.FC = () => {
           <Col xs={24} md={12}>
             <Space>
               <div style={styles.headerTitle}>📊 股票智能分析系统</div>
+              <Tag color="blue" style={{ fontSize: 11, padding: '2px 10px', border: 'none', background: 'rgba(255,255,255,0.2)', color: '#fff' }}>⚡ 组件系统就绪 ({widgetRegistry.count})</Tag>
               <ThemeToggle />
             </Space>
             <div style={styles.headerSub}>多源数据驱动的智能分析平台 · 技能化架构 · 可视化报告</div>
@@ -491,7 +348,7 @@ const Dashboard: React.FC = () => {
 
         {/* Footer */}
         <div style={styles.footer}>
-          数据来源：新浪财经(行情) + 东方财富(风控) + 通义千问(AI分析) &nbsp;|&nbsp; 技能化架构 · 可视化报告 &nbsp;|&nbsp; 仅供参考，不构成投资建议
+          数据来源：mootdx(行情/F10) + 腾讯财经(估值) + 东财(研报/风控) + akshare(新闻/公告) + 巨潮(公告) + DeepSeek(AI分析) &nbsp;|&nbsp; 五层数据架构 · 可视化报告 &nbsp;|&nbsp; 仅供参考，不构成投资建议
         </div>
       </div>
     </div>

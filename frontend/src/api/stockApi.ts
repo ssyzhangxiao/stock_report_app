@@ -153,4 +153,81 @@ export const getNewsAggregate = async (symbol: string): Promise<NewsAggregateRes
   return response as unknown as NewsAggregateResponse;
 };
 
+// 统一数据获取模块 API
+export interface UnifiedDataResult {
+  symbol: string;
+  success: boolean;
+  source: string;
+  status: string;
+  data: any;
+  metadata: any;
+  error?: string;
+}
+
+export interface UnifiedAllResult {
+  market: UnifiedDataResult;
+  research: UnifiedDataResult;
+  news: UnifiedDataResult;
+  financials: UnifiedDataResult;
+  announcements: UnifiedDataResult;
+}
+
+export const getUnifiedMarket = async (symbol: string, includeKline = true, klineDays = 60): Promise<UnifiedDataResult> => {
+  const response = await api.get(`/analysis/unified/market/${symbol}`, {
+    params: { include_kline: includeKline, kline_days: klineDays },
+  });
+  return response as unknown as UnifiedDataResult;
+};
+
+export const getUnifiedResearch = async (symbol: string, includeIwencai = false): Promise<UnifiedDataResult> => {
+  const response = await api.get(`/analysis/unified/research/${symbol}`, {
+    params: { include_iwencai: includeIwencai },
+  });
+  return response as unknown as UnifiedDataResult;
+};
+
+export const getUnifiedNews = async (symbol: string, includeGlobal = false): Promise<UnifiedDataResult> => {
+  const response = await api.get(`/analysis/unified/news/${symbol}`, {
+    params: { include_global: includeGlobal },
+  });
+  return response as unknown as UnifiedDataResult;
+};
+
+export const getUnifiedFinancials = async (symbol: string): Promise<UnifiedDataResult> => {
+  const response = await api.get(`/analysis/unified/financials/${symbol}`);
+  return response as unknown as UnifiedDataResult;
+};
+
+export const getUnifiedAnnouncements = async (symbol: string): Promise<UnifiedDataResult> => {
+  const response = await api.get(`/analysis/unified/announcements/${symbol}`);
+  return response as unknown as UnifiedDataResult;
+};
+
+export const getUnifiedAll = async (symbol: string): Promise<UnifiedAllResult> => {
+  const response = await api.get(`/analysis/unified/all/${symbol}`);
+  return response as unknown as UnifiedAllResult;
+};
+
+// DCF 估值计算 API
+export interface DCFResult {
+  symbol: string;
+  current_price: number;
+  fair_value: number;
+  upside_potential: number;
+  downside_potential: number;
+  wacc: number;
+  terminal_growth: number;
+  sensitivity_matrix: number[][];
+  wacc_values: number[];
+  growth_values: number[];
+  using_default: boolean;
+  fcf_history?: any[];
+  fcf_forecast?: any[];
+}
+
+export const getDCFAnalysis = async (symbol: string): Promise<DCFResult> => {
+  const response = await api.get(`/analysis/dcf/${symbol}`);
+  return response as unknown as DCFResult;
+};
+
 export default api;

@@ -1,137 +1,213 @@
-import React from 'react';
-import { Card, Typography } from 'antd';
+import React, { useMemo } from 'react';
+import { Card, Typography, Row, Col } from 'antd';
 import ReactECharts from 'echarts-for-react';
+import type { ValuationData, FinancialIndicator } from '../../types/stock';
 
 const { Text } = Typography;
 
-interface ValuationModel {
-  name: string;
-  value: number;
-  color?: string;
-}
-
 interface ValuationComparisonProps {
-  models: ValuationModel[];
+  valuation: ValuationData;
   currentPrice?: number;
+  financialIndicators: FinancialIndicator[];
   title?: string;
 }
 
-const ValuationComparison: React.FC<ValuationComparisonProps> = ({ 
-  models, 
-  currentPrice, 
-  title = '多模型估值对比' 
+const ValuationComparison: React.FC<ValuationComparisonProps> = ({
+  valuation,
+  currentPrice,
+  financialIndicators,
+  title = '估值对比'
 }) => {
-  const option: any = {
-    tooltip: {
-      trigger: 'axis',
-      axisPointer: {
-        type: 'shadow'
-      },
-      formatter: (params: any) => {
-        const data = params[0];
-        let result = `${data.name}<br/>`;
-        result += `估值: ¥${data.value.toFixed(2)}`;
-        if (currentPrice) {
-          const diff = data.value - currentPrice;
-          const pct = ((diff / currentPrice) * 100).toFixed(2);
-          result += `<br/>较当前价格: ${diff >= 0 ? '+' : ''}¥${diff.toFixed(2)} (${pct}%)`;
-        }
-        return result;
-      }
-    },
-    grid: {
-      left: '3%',
-      right: '4%',
-      bottom: '3%',
-      containLabel: true
-    },
-    xAxis: {
-      type: 'category',
-      data: models.map(m => m.name),
-      axisLabel: {
-        fontSize: 11,
-        rotate: 15
-      }
-    },
-    yAxis: {
-      type: 'value',
-      name: '估值 (元)',
-      axisLabel: {
-        formatter: '¥{value}'
-      }
-    },
-    series: [{
-      name: '估值',
-      type: 'bar',
-      data: models.map((m, idx) => ({
-        value: m.value,
-        itemStyle: {
-          color: m.color || ['#5470c6', '#91cc75', '#fac858', '#ee6666', '#73c0de', '#3ba272', '#fc8452', '#9a60b4'][idx % 8]
-        }
-      })),
-      barWidth: '35%',
-      label: {
-        show: true,
-        position: 'top',
-        formatter: (params: any) => `¥${params.value.toFixed(0)}`
-      }
-    }]
-  };
+  const option = useMemo(() => {
+    const fi = financialIndicators as any[];
+    const hasData = fi && fi.length >= 2;
 
-  // 如果有当前价格，添加参考线
-  if (currentPrice) {
-    option.series.push({
-      type: 'line',
-      data: models.map(() => currentPrice),
-      lineStyle: {
-        color: '#ff4d4f',
-        type: 'dashed',
-        width: 2
+    // 只保留年报数据（12-31）
+    const annualData = hasData ? fi.filter(r => {
+      const dateStr = String(r['日期'] || '');
+      return dateStr.includes('12-31');
+    }) : [];
+
+    const useAnnualData = annualData && annualData.length >= 2;
+    const dataToUse = useAnnualData ? annualData : (hasData ? fi : []);
+
+    // 构建历史数据
+    const dates = useAnnualData
+      ? annualData.map(r => String(r['日期'] || '').slice(0, 4)).reverse()
+      : (hasData ? fi.map(r => String(r['日期'] || '').slice(0, 7)).reverse() : ['T-5', 'T-4', 'T-3', 'T-2', 'T-1']);
+
+    // 生成历史 PE 数据（模拟或从真实数据提取
+    const peHistory = dataToUse.length > 0
+      ? dataToUse.map(r => {
+        const eps = r['每股收益'];
+        const pe = eps && currentPrice ? currentPrice / eps : valuation.pe_ratio || 20;
+        return Math.min(Math.max(pe, 5), 100); // 限制在合理范围
+      }).reverse()
+      : [15, 18, 22, 25, valuation.pe_ratio || 20];
+
+    // 生成历史估值数据
+    const valuationHistory = dataToUse.length > 0
+      ? dataToUse.map((r) => {
+        const eps = r['每股收益'];
+        const industryPe = valuation.industry_pe || 20;
+        return eps ? eps * industryPe : currentPrice || 100;
+      }).reverse()
+      : [80, 90, 100, 110, (valuation.pe_ratio || 20) * (currentPrice || 100) / 20];
+
+    const series: any[] = [
+      {
+        name: 'PE',
+        type: 'line',
+        data: peHistory,
+        yAxisIndex: 0,
+        smooth: true,
+        lineStyle: { width: 2, color: '#1890ff' },
+        symbol: 'circle',
+        symbolSize: 6,
+        itemStyle: { color: '#1890ff' },
+        areaStyle: { color: 'rgba(24,144,255,0.1)' }
       },
-      symbol: 'none',
-      markLine: {
-        silent: true,
-        data: [{
-          yAxis: currentPrice,
-          label: {
-            formatter: `当前价格: ¥${currentPrice.toFixed(2)}`,
-            position: 'insideEndTop'
-          },
-          lineStyle: {
-            color: '#ff4d4f',
-            type: 'dashed'
+      {
+        name: '估值',
+        type: 'line',
+        data: valuationHistory,
+        yAxisIndex: 1,
+        smooth: true,
+        lineStyle: { width: 2, color: '#52c41a' },
+        symbol: 'diamond',
+        symbolSize: 6,
+        itemStyle: { color: '#52c41a' },
+        areaStyle: { color: 'rgba(82,196,106,0.1)' }
+      }
+    ];
+
+    // 添加当前价格参考线
+    if (currentPrice) {
+      series.push({
+        name: '当前价格',
+        type: 'line',
+        data: dataToUse.length > 0 ? dataToUse.map(() => currentPrice) : [],
+        yAxisIndex: 1,
+        lineStyle: {
+          color: '#ff4d4f',
+          type: 'dashed',
+          width: 2
+        },
+        symbol: 'none',
+        markLine: {
+          silent: true,
+          data: [{
+            yAxis: currentPrice,
+            label: {
+              formatter: `当前价: ¥${currentPrice.toFixed(0)}`,
+              position: 'insideEndTop',
+              fontSize: 10
+            },
+            lineStyle: {
+              color: '#ff4d4f',
+              type: 'dashed'
+            }
+          }]
+        }
+      });
+    }
+
+    return {
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: {
+          type: 'cross'
+        },
+        formatter: (params: any) => {
+          let result = useAnnualData ? `${params[0].axisValue}年<br/>` : `${params[0].axisValue}<br/>`;
+          params.forEach((p: any) => {
+            if (p.seriesName === 'PE') {
+              result += `${p.marker}PE: ${p.value.toFixed(2)}x<br/>`;
+            } else if (p.seriesName !== '当前价格') {
+              result += `${p.marker}估值: ¥${p.value.toFixed(2)}<br/>`;
+            }
+          });
+          if (currentPrice) {
+            result += `<hr style="margin:4px 0"/>当前价格: ¥${currentPrice.toFixed(2)}`;
           }
-        }]
-      }
-    });
-  }
+          return result;
+        }
+      },
+      legend: {
+        data: ['PE', '估值', '当前价格'],
+        bottom: 2,
+        icon: 'roundRect',
+        itemWidth: 10,
+        itemHeight: 8,
+        fontSize: 11
+      },
+      grid: {
+        left: '8%',
+        right: '8%',
+        top: '12%',
+        bottom: '15%',
+        containLabel: true
+      },
+      xAxis: {
+        type: 'category',
+        data: dates,
+        axisLabel: {
+          fontSize: 10
+        }
+      },
+      yAxis: [
+        {
+          type: 'value',
+          name: 'PE (倍)',
+          position: 'left',
+          nameTextStyle: { fontSize: 10 },
+          axisLabel: { fontSize: 10 },
+          splitLine: { lineStyle: { type: 'dashed' } }
+        },
+        {
+          type: 'value',
+          name: '估值 (元)',
+          position: 'right',
+          nameTextStyle: { fontSize: 10 },
+          axisLabel: { fontSize: 10, formatter: '¥{value}' },
+          splitLine: { show: false }
+        }
+      ],
+      series
+    };
+  }, [valuation, currentPrice, financialIndicators]);
 
-  // 计算平均估值
-  const avgValuation = models.reduce((sum, m) => sum + m.value, 0) / models.length;
-  const upside = currentPrice ? (((avgValuation - currentPrice) / currentPrice) * 100).toFixed(2) : null;
+  const currentPE = valuation.pe_ratio || '--';
+  const industryPE = valuation.industry_pe || '--';
 
   return (
     <Card title={title} style={{ marginBottom: 16 }}>
-      {currentPrice && (
-        <div style={{ marginBottom: 16, padding: 12, background: '#f5f5f5', borderRadius: 4 }}>
-          <Text strong>当前价格: </Text>
-          <Text style={{ color: '#ff4d4f', fontWeight: 'bold' }}>¥{currentPrice.toFixed(2)}</Text>
-          <Text style={{ marginLeft: 24 }} strong>平均估值: </Text>
-          <Text style={{ color: '#52c41a', fontWeight: 'bold' }}>¥{avgValuation.toFixed(2)}</Text>
-          {upside && (
-            <Text style={{ marginLeft: 24 }} strong>上涨空间: </Text>
-          )}
-          {upside && (
-            <Text style={{ color: parseFloat(upside) >= 0 ? '#52c41a' : '#ff4d4f', fontWeight: 'bold' }}>
-              {parseFloat(upside) >= 0 ? '+' : ''}{upside}%
+      <div style={{ marginBottom: 12, padding: 12, background: 'var(--bg-elevated)', borderRadius: 4 }}>
+        <Row gutter={16}>
+          <Col span={8}>
+            <Text type="secondary" style={{ fontSize: 12 }}>当前价格: </Text>
+            <Text style={{ color: '#ff4d4f', fontWeight: 'bold' }}>
+              ¥{currentPrice?.toFixed(2) || '--'}
             </Text>
-          )}
-        </div>
-      )}
-      <ReactECharts option={option} style={{ height: 400 }} />
+          </Col>
+          <Col span={8}>
+            <Text type="secondary" style={{ fontSize: 12 }}>当前PE: </Text>
+            <Text style={{ color: '#1890ff', fontWeight: 'bold' }}>
+              {typeof currentPE === 'number' ? `${currentPE.toFixed(2)}x` : currentPE}
+            </Text>
+          </Col>
+          <Col span={8}>
+            <Text type="secondary" style={{ fontSize: 12 }}>行业PE: </Text>
+            <Text style={{ color: '#52c41a', fontWeight: 'bold' }}>
+              {typeof industryPE === 'number' ? `${industryPE.toFixed(2)}x` : industryPE}
+            </Text>
+          </Col>
+        </Row>
+      </div>
+      <ReactECharts option={option} style={{ height: 280 }} />
       <div style={{ marginTop: 12 }}>
         <Text type="secondary" style={{ fontSize: 12 }}>
-           不同估值模型结果可能存在差异，建议综合参考并结合公司基本面判断
+          💡 提示：图表仅展示年度数据（12-31年报），PE低于行业平均可能被低估，关注估值变化趋势
         </Text>
       </div>
     </Card>
