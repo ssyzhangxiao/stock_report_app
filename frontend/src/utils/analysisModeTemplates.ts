@@ -139,6 +139,14 @@ export const DEEP_ANALYSIS_MODE: AnalysisModeTemplate = {
         { i: 'macd-analysis', x: 0, y: 34, w: 20, h: 12 },
         { i: 'kdj-analysis', x: 20, y: 34, w: 20, h: 12 }
       ]
+    },
+    'capital': {
+      id: 'capital',
+      name: '资本运作',
+      description: '募集资金、投资项目、收购兼并等资本运作信息',
+      layout: [
+        { i: 'capital-operation', x: 0, y: 0, w: 40, h: 40 }
+      ]
     }
   }
 };

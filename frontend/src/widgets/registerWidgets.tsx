@@ -24,6 +24,7 @@ import MATechnicalAnalysis from '../components/panels/MATechnicalAnalysis';
 import RiskScoreCard from '../components/cards/RiskScoreCard';
 import UnifiedDataPanel from '../components/panels/UnifiedDataPanel';
 import CompanyProfileCard from '../components/cards/CompanyProfileCard';
+import CapitalOperationPanel from '../components/panels/CapitalOperationPanel';
 
 function registerAllWidgets(): void {
   const registrations: Array<{ meta: WidgetMeta; component: React.ComponentType<WidgetProps> }> = [
@@ -805,6 +806,21 @@ function registerAllWidgets(): void {
       },
       component: ({ data }) => {
         return <CompanyProfileCard data={data} />;
+      },
+    },
+    {
+      meta: {
+        id: 'capital-operation',
+        name: '资本运作',
+        description: '募集资金、投资项目、收购兼并等资本运作信息',
+        category: 'panel',
+        icon: '💰',
+        implemented: true,
+        tags: ['资本运作', '投资', '融资'],
+        defaultSize: { w: 40, h: 35 },
+      },
+      component: ({ data }) => {
+        return <CapitalOperationPanel data={data} />;
       },
     },
     {
