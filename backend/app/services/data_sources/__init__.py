@@ -6,7 +6,7 @@ from .ai_source import QwenDataSource, DeepSeekDataSource
 from .unified import (
     UnifiedDataAcquisition, get_unified_acquisition,
     get_market_data, get_research, get_news,
-    get_financials, get_announcements,
+    get_financials, get_announcements, get_capital_operation,
     DataResult, SourceStatus,
 )
 
@@ -17,6 +17,6 @@ __all__ = [
     "QwenDataSource", "DeepSeekDataSource",
     "UnifiedDataAcquisition", "get_unified_acquisition",
     "get_market_data", "get_research", "get_news",
-    "get_financials", "get_announcements",
+    "get_financials", "get_announcements", "get_capital_operation",
     "DataResult", "SourceStatus",
 ]

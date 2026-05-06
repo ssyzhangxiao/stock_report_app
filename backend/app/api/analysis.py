@@ -761,6 +761,43 @@ async def calculate_dcf(symbol: str):
         raise HTTPException(status_code=500, detail=f"DCF 计算失败: {str(e)}")
 
 
+@router.get("/capital-operation/{symbol}")
+async def get_capital_operation(symbol: str):
+    """获取资本运作数据（募集资金、投资项目、收购兼并、股权投资、股权转让、关联交易）"""
+    try:
+        validated = validate_api_input(symbol, 1)
+        symbol = validated["symbol"]
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"参数错误: {e}")
+
+    try:
+        from starlette.concurrency import run_in_threadpool
+        from ..services.data_sources.unified import get_capital_operation as fetch_capital
+
+        def _do_fetch():
+            result = fetch_capital(symbol)
+            if result.success and result.data:
+                return result.data
+            return {
+                "fund_raising": [],
+                "project_investment": [],
+                "acquisition": [],
+                "equity_investment": [],
+                "equity_transfer": [],
+                "related_transactions": [],
+                "company_info": None,
+                "profit_forecast": [],
+            }
+
+        return await run_in_threadpool(_do_fetch)
+
+    except Exception as e:
+        import traceback
+        logger.error(f"获取资本运作数据失败: {e}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"获取资本运作数据失败: {str(e)}")
+
+
 @router.get("/health")
 async def health_check():
     return {"status": "ok"}

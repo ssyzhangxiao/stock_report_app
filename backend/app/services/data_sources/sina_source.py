@@ -9,6 +9,7 @@ import concurrent.futures
 import atexit
 
 from .base import DataSource
+from .stock_utils import to_sina_symbol
 
 logger = logging.getLogger(__name__)
 
@@ -29,16 +30,6 @@ def _fetch(func: Callable, timeout: int):
         return None
 
 
-def _to_sina_symbol(symbol: str) -> str:
-    if symbol.startswith(('600', '601', '603', '605', '688', '689')):
-        return f"sh{symbol}"
-    elif symbol.startswith(('000', '001', '002', '003', '300', '301')):
-        return f"sz{symbol}"
-    elif symbol.startswith(('4', '8')):
-        return f"bj{symbol}"
-    return f"sh{symbol}"
-
-
 class SinaDataSource(DataSource):
     """新浪财经数据源（仅提供快速可靠的行情数据）"""
 
@@ -52,7 +43,7 @@ class SinaDataSource(DataSource):
     def get_daily(self, symbol: str, years: int = 2, adjust: str = "qfq") -> Optional[pd.DataFrame]:
         end = datetime.now().strftime("%Y%m%d")
         start = (datetime.now() - timedelta(days=365 * years)).strftime("%Y%m%d")
-        prefix = _to_sina_symbol(symbol)
+        prefix = to_sina_symbol(symbol)
 
         # 尝试新浪
         try:
@@ -93,7 +84,7 @@ class SinaDataSource(DataSource):
             df = _spot_cache["data"]
             if df is None or df.empty:
                 return None
-            sina_code = _to_sina_symbol(symbol)
+            sina_code = to_sina_symbol(symbol)
             df['代码'] = df['代码'].astype(str).str.strip()
             row = df[df['代码'] == sina_code]
             if row.empty:
@@ -142,7 +133,7 @@ class SinaDataSource(DataSource):
     def get_shares_outstanding(self, symbol: str) -> Optional[float]:
         """获取最新流通股本（股数），用于计算流通市值"""
         try:
-            prefix = _to_sina_symbol(symbol)
+            prefix = to_sina_symbol(symbol)
             end = datetime.now().strftime("%Y%m%d")
             start = (datetime.now() - timedelta(days=5)).strftime("%Y%m%d")
             df = ak.stock_zh_a_daily(symbol=prefix, start_date=start, end_date=end, adjust="qfq")

@@ -7,18 +7,11 @@ import concurrent.futures
 import atexit
 
 from .base import DataSource
+from .stock_utils import is_sse, is_szse
 
 logger = logging.getLogger(__name__)
 
 _EM_TIMEOUT = 15
-
-
-def _is_sse_stock(symbol: str) -> bool:
-    return symbol.startswith(('600', '601', '603', '605', '688', '689'))
-
-
-def _is_szse_stock(symbol: str) -> bool:
-    return symbol.startswith(('000', '001', '002', '003', '300', '301'))
 
 
 _executor = concurrent.futures.ThreadPoolExecutor(max_workers=4, thread_name_prefix="em_fetch")
@@ -121,9 +114,9 @@ class EastMoneyDataSource(DataSource):
 
     def get_insider_holdings(self, symbol: str) -> Optional[pd.DataFrame]:
         try:
-            if _is_sse_stock(symbol):
+            if is_sse(symbol):
                 return _fetch(lambda: ak.stock_share_hold_change_sse(symbol=symbol))
-            elif _is_szse_stock(symbol):
+            elif is_szse(symbol):
                 return _fetch(lambda: ak.stock_share_hold_change_szse(symbol=symbol))
             return None
         except Exception as e:
@@ -132,7 +125,7 @@ class EastMoneyDataSource(DataSource):
 
     def get_margin_history(self, symbol: str, days: int = 10) -> Optional[List]:
         """获取个股融资融券日度历史（用于折线图）"""
-        if not _is_sse_stock(symbol) and not _is_szse_stock(symbol):
+        if not is_sse(symbol) and not is_szse(symbol):
             return None
         base = datetime.now()
         dates = [(base - timedelta(days=i)).strftime('%Y%m%d') for i in range(1, days + 1)][:5]
@@ -143,7 +136,7 @@ class EastMoneyDataSource(DataSource):
                 continue
             seen.add(d)
             try:
-                if _is_sse_stock(symbol):
+                if is_sse(symbol):
                     df = _fetch(lambda date=d: ak.stock_margin_detail_sse(date=date), timeout=5)
                 else:
                     df = _fetch(lambda date=d: ak.stock_margin_detail_szse(date=date), timeout=5)

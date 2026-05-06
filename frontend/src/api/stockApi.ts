@@ -230,4 +230,94 @@ export const getDCFAnalysis = async (symbol: string): Promise<DCFResult> => {
   return response as unknown as DCFResult;
 };
 
+// 资本运作数据 API
+export interface FundRaisingItem {
+  announcement_date: string;
+  issue_type: string;
+  start_date: string;
+  net_raised: string;
+  remaining_end_date: string;
+  remaining: string;
+  utilization_rate: string;
+}
+
+export interface ProjectInvestmentItem {
+  announcement_date: string;
+  project_name: string;
+  promised_funds: string;
+  invested_funds: string;
+  construction_period: string;
+  after_tax_return: string;
+  predicted_net_profit: string;
+  project_desc: string;
+}
+
+export interface AcquisitionItem {
+  year?: string;
+  announcement_date: string;
+  transaction_amount: string;
+  progress: string;
+  target: string;
+  buyer: string;
+  seller: string;
+  overview: string;
+}
+
+export interface EquityInvestmentItem {
+  fund_name: string;
+  fund_code: string;
+  hold_number: string;
+  hold_ratio: string;
+  hold_value: string;
+  net_ratio: string;
+}
+
+export interface EquityTransferItem {
+  year?: string;
+  announcement_date: string;
+  transaction_amount: string;
+  transfer_ratio: string;
+  transferor: string;
+  target: string;
+  transferee: string;
+  overview: string;
+  impact?: string;
+}
+
+export interface RelatedTransactionItem {
+  year?: string;
+  announcement_date: string;
+  transaction_amount: string;
+  payment_method: string;
+  counterparty: string;
+  transaction_type: string;
+  related_relation: string;
+  description: string;
+}
+
+export interface ProfitForecastItem {
+  year: string;
+  avg_eps: number | null;
+  org_count: number | null;
+  min_eps: number | null;
+  max_eps: number | null;
+  industry_avg: number | null;
+}
+
+export interface CapitalOperationResult {
+  fund_raising: FundRaisingItem[];
+  project_investment: ProjectInvestmentItem[];
+  acquisition: AcquisitionItem[];
+  equity_investment: EquityInvestmentItem[];
+  equity_transfer: EquityTransferItem[];
+  related_transactions: RelatedTransactionItem[];
+  company_info: Record<string, string> | null;
+  profit_forecast: ProfitForecastItem[];
+}
+
+export const getCapitalOperation = async (symbol: string): Promise<CapitalOperationResult> => {
+  const response = await api.get(`/analysis/capital-operation/${symbol}`);
+  return response as unknown as CapitalOperationResult;
+};
+
 export default api;

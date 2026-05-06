@@ -209,6 +209,61 @@ class SkillEngine:
             pledge.estimated_duration = 8
             self.register_skill(pledge)
 
+        # 技术分析技能
+        tech = self._load_skill_from_md(
+            "technical-trend",
+            SKILLS_DIR / "technical" / "trend" / "SKILL.md",
+            "technical"
+        )
+        if tech:
+            tech.icon = "📈"
+            tech.estimated_duration = 12
+            self.register_skill(tech)
+
+        # 行业分析技能
+        industry = self._load_skill_from_md(
+            "industry-analysis",
+            SKILLS_DIR / "industry" / "analysis" / "SKILL.md",
+            "industry"
+        )
+        if industry:
+            industry.icon = "🏭"
+            industry.estimated_duration = 10
+            self.register_skill(industry)
+
+        # 新闻情绪技能
+        news = self._load_skill_from_md(
+            "news-sentiment",
+            SKILLS_DIR / "news" / "sentiment" / "SKILL.md",
+            "news"
+        )
+        if news:
+            news.icon = "📰"
+            news.estimated_duration = 8
+            self.register_skill(news)
+
+        # 资本运作技能
+        capital = self._load_skill_from_md(
+            "capital-operation",
+            SKILLS_DIR / "capital" / "operation" / "SKILL.md",
+            "capital"
+        )
+        if capital:
+            capital.icon = "💼"
+            capital.estimated_duration = 12
+            self.register_skill(capital)
+
+        # 财务健康技能
+        financial = self._load_skill_from_md(
+            "financial-health",
+            SKILLS_DIR / "financial" / "health" / "SKILL.md",
+            "financial"
+        )
+        if financial:
+            financial.icon = "📋"
+            financial.estimated_duration = 15
+            self.register_skill(financial)
+
         # 报告技能
         report = Skill(
             id="full-report",
@@ -244,16 +299,37 @@ class SkillEngine:
             name="风险控制分析",
             description="全面风险评估",
             icon="🛡️",
-            skills=["pledge-risk"],
-            estimated_duration=8,
+            skills=["pledge-risk", "news-sentiment"],
+            estimated_duration=16,
+        ))
+        self.register_mode(AnalysisMode(
+            id="technical-scan",
+            name="技术面扫描",
+            description="技术指标 + 行业对比",
+            icon="🔍",
+            skills=["technical-trend", "industry-analysis"],
+            estimated_duration=22,
+        ))
+        self.register_mode(AnalysisMode(
+            id="fundamental-check",
+            name="基本面体检",
+            description="财务健康 + 资本运作",
+            icon="🏥",
+            skills=["financial-health", "capital-operation"],
+            estimated_duration=27,
         ))
         self.register_mode(AnalysisMode(
             id="full-report-mode",
             name="完整分析报告",
             description="全方位深度分析",
             icon="📑",
-            skills=["dcf-valuation", "pe-pb-valuation", "pledge-risk", "full-report"],
-            estimated_duration=60,
+            skills=[
+                "dcf-valuation", "pe-pb-valuation", "pledge-risk",
+                "technical-trend", "industry-analysis",
+                "news-sentiment", "capital-operation",
+                "financial-health", "full-report",
+            ],
+            estimated_duration=120,
         ))
 
         logger.info(f"技能引擎初始化完成: {len(self._skills)} 个技能, {len(self._modes)} 个模式")
@@ -304,6 +380,31 @@ class SkillEngine:
             risk_data = stock_data.get("risk_indicators", {})
             prompt_parts.append(f"- 质押比例数据: {json.dumps(risk_data.get('pledge_ratio', []), ensure_ascii=False)}")
             prompt_parts.append(f"- 融资融券: {json.dumps(risk_data.get('margin_balance', []), ensure_ascii=False)}")
+
+        elif skill.category == "technical":
+            prompt_parts.append(f"- K线数据: {json.dumps(stock_data.get('kline_summary', {}), ensure_ascii=False)}")
+            prompt_parts.append(f"- 技术指标: {json.dumps(stock_data.get('technical_indicators', {}), ensure_ascii=False)}")
+            prompt_parts.append(f"- 大盘指数: {json.dumps(stock_data.get('market_index', {}), ensure_ascii=False)}")
+
+        elif skill.category == "industry":
+            prompt_parts.append(f"- 行业信息: {json.dumps(stock_data.get('industry_info', {}), ensure_ascii=False)}")
+            prompt_parts.append(f"- 同行业公司: {json.dumps(stock_data.get('industry_peers', []), ensure_ascii=False)}")
+            prompt_parts.append(f"- 行业趋势: {json.dumps(stock_data.get('industry_trend', []), ensure_ascii=False)}")
+
+        elif skill.category == "news":
+            prompt_parts.append(f"- 新闻列表: {json.dumps(stock_data.get('news', []), ensure_ascii=False)}")
+            prompt_parts.append(f"- 情感分析: {json.dumps(stock_data.get('sentiment_summary', {}), ensure_ascii=False)}")
+            prompt_parts.append(f"- 风险摘要: {json.dumps(stock_data.get('risk_summary', {}), ensure_ascii=False)}")
+
+        elif skill.category == "capital":
+            prompt_parts.append(f"- 分红数据: {json.dumps(stock_data.get('dividend_history', []), ensure_ascii=False)}")
+            prompt_parts.append(f"- 增减持: {json.dumps(stock_data.get('insider_holdings', []), ensure_ascii=False)}")
+            prompt_parts.append(f"- 回购数据: {json.dumps(stock_data.get('buyback', []), ensure_ascii=False)}")
+
+        elif skill.category == "financial":
+            prompt_parts.append(f"- 财务指标: {json.dumps(stock_data.get('financial_indicators', {}), ensure_ascii=False)}")
+            prompt_parts.append(f"- 盈利预测: {json.dumps(stock_data.get('profit_forecast', []), ensure_ascii=False)}")
+            prompt_parts.append(f"- 一致预期: {json.dumps(stock_data.get('consensus', {}), ensure_ascii=False)}")
 
         prompt_parts.extend([
             "",
