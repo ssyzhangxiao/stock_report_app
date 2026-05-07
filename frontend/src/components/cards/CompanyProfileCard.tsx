@@ -21,25 +21,25 @@ const CompanyProfileCard: React.FC<CompanyProfileProps> = ({ data }) => {
     );
   }
 
-  // 构建完整的公司简介数据（从 mock 数据开始，后续可以从实际数据源获取）
+  // 构建完整的公司简介数据，完全从后端真实数据获取
   const profile = {
-    name: companyInfo.name || '贵州茅台酒股份有限公司',
-    region: '贵州省',
-    englishName: 'Kweichow Moutai Co.,Ltd.',
-    industry: companyInfo.industry || '食品饮料 — 白酒Ⅱ',
-    formerName: '贵州茅台->G茅台',
-    mainBusiness: companyInfo.main_business || '茅台酒及系列酒的生产与销售。',
-    products: '茅台酒、其他系列酒',
-    controllingShareholder: '中国贵州茅台酒厂(集团)有限责任公司 (持有贵州茅台酒股份有限公司股份比例：54.40% )',
-    actualController: '贵州省人民政府国有资产监督管理委员会 (持有贵州茅台酒股份有限公司股份比例：48.96%)',
-    finalController: '贵州省人民政府国有资产监督管理委员会 (持有贵州茅台酒股份有限公司股份比例：48.96% )',
-    chairman: '陈华',
-    secretary: '余思明(代)',
-    legalRepresentative: '陈华',
-    generalManager: '王莉(代)',
-    registeredCapital: '12.52亿元',
-    employeeCount: '34992',
-    description: `贵州茅台酒股份有限公司的主营业务是茅台酒及系列酒的生产与销售。公司的主要产品是茅台酒。`,
+    name: companyInfo.name || '-',
+    region: companyInfo.region || '-',
+    englishName: companyInfo.english_name || '-',
+    industry: companyInfo.industry || '-',
+    formerName: companyInfo.former_name || '-',
+    mainBusiness: companyInfo.main_business || '-',
+    products: companyInfo.products || '-',
+    controllingShareholder: companyInfo.controlling_shareholder || '-',
+    actualController: companyInfo.actual_controller || '-',
+    finalController: companyInfo.final_controller || '-',
+    chairman: companyInfo.chairman || '-',
+    secretary: companyInfo.secretary || '-',
+    legalRepresentative: companyInfo.legal_representative || '-',
+    generalManager: companyInfo.general_manager || '-',
+    registeredCapital: companyInfo.registered_capital || '-',
+    employeeCount: companyInfo.employee_count ? String(companyInfo.employee_count) : '-',
+    description: companyInfo.description || '-',
   };
 
   return (

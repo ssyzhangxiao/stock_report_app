@@ -3,33 +3,48 @@ from typing import Dict, Any, Optional
 import pandas as pd
 
 
-class DataSource(ABC):
-    """数据源抽象基类"""
+class MarketDataSource(ABC):
+    """行情数据源接口"""
 
     @property
     @abstractmethod
-    def name(self) -> str:
-        """数据源标识符"""
-        ...
+    def name(self) -> str: ...
 
     @abstractmethod
-    def is_available(self) -> bool:
-        """数据源是否可用"""
-        ...
-
-    # ---- 必选接口（每个数据源都必须实现） ----
+    def is_available(self) -> bool: ...
 
     @abstractmethod
-    def get_daily(self, symbol: str, years: int = 2, adjust: str = "qfq") -> Optional[pd.DataFrame]:
-        """历史行情"""
-        ...
+    def get_daily(
+        self, symbol: str, years: int = 2, adjust: str = "qfq"
+    ) -> Optional[pd.DataFrame]: ...
 
     @abstractmethod
-    def get_company_info(self, symbol: str) -> Optional[Dict[str, Any]]:
-        """公司信息"""
-        ...
+    def get_company_info(self, symbol: str) -> Optional[Dict[str, Any]]: ...
 
-    # ---- 可选接口（不支持的返回 None） ----
+    def get_cyq(self, symbol: str) -> Optional[pd.DataFrame]:
+        return None
+
+    def get_fund_flow(self, symbol: str) -> Optional[pd.DataFrame]:
+        return None
+
+    def get_news(self, symbol: str) -> Optional[pd.DataFrame]:
+        return None
+
+    def get_industry_index(
+        self, industry_code: str = None, days: int = 180
+    ) -> Optional[pd.DataFrame]:
+        return None
+
+
+class FundamentalDataSource(ABC):
+    """基本面数据源接口"""
+
+    @property
+    @abstractmethod
+    def name(self) -> str: ...
+
+    @abstractmethod
+    def is_available(self) -> bool: ...
 
     def get_financial_indicators(self, symbol: str) -> Optional[pd.DataFrame]:
         return None
@@ -38,6 +53,9 @@ class DataSource(ABC):
         return None
 
     def get_cashflow(self, symbol: str) -> Optional[pd.DataFrame]:
+        return None
+
+    def get_free_cashflow(self, symbol: str, years: int = 5) -> Optional[pd.DataFrame]:
         return None
 
     def get_income_statement(self, symbol: str) -> Optional[pd.DataFrame]:
@@ -58,25 +76,39 @@ class DataSource(ABC):
     def get_goodwill(self, symbol: str) -> Optional[pd.DataFrame]:
         return None
 
-    def get_cyq(self, symbol: str) -> Optional[pd.DataFrame]:
-        return None
-
-    def get_fund_flow(self, symbol: str) -> Optional[pd.DataFrame]:
-        return None
-
-    def get_news(self, symbol: str) -> Optional[pd.DataFrame]:
-        return None
-
     def get_analyst_rating(self, symbol: str) -> Optional[Dict[str, Any]]:
         return None
 
     def get_profit_forecast(self, symbol: str) -> Optional[pd.DataFrame]:
         return None
 
-    # ---- AI 分析接口（仅 AI 数据源实现） ----
+    def get_industry_class(self, symbol: str) -> Optional[Dict[str, str]]:
+        return None
 
-    def generate_smart_analysis(self, symbol: str, stock_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def get_capital_operation(self, symbol: str) -> Optional[Dict[str, Any]]:
+        return None
+
+
+class AIDataSource(ABC):
+    """AI 分析数据源接口"""
+
+    @property
+    @abstractmethod
+    def name(self) -> str: ...
+
+    @abstractmethod
+    def is_available(self) -> bool: ...
+
+    def generate_smart_analysis(
+        self, symbol: str, stock_data: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
         return None
 
     def generate_analysis_from_knowledge(self, symbol: str) -> Optional[Dict[str, Any]]:
         return None
+
+
+class DataSource(MarketDataSource, FundamentalDataSource, AIDataSource):
+    """数据源抽象基类（向后兼容，合并三个接口）"""
+
+    pass

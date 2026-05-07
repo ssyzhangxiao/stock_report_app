@@ -1,32 +1,28 @@
 """
 网页抓取服务 - 从财经网站抓取股票相关内容
-支持: k.sina.cn, xueqiu.com, www.futunn.com, cn.investing.com, 
+支持: k.sina.cn, xueqiu.com, www.futunn.com, cn.investing.com,
       news.10jqka.com.cn, quote.eastmoney.com 等
 """
 
 import logging
-import re
 from typing import Dict, Any, Optional, List
 from datetime import datetime
-from urllib.parse import urljoin
 
 import requests
 from bs4 import BeautifulSoup
 
-logger = logging.getLogger(__name__)
+from .common_utils import HTTP_HEADERS, get_stock_name, extract_domain
 
-_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-}
+logger = logging.getLogger(__name__)
 
 _FETCH_TIMEOUT = 8
 _MAX_CONTENT_LENGTH = 2000
 
 
 class FetchedArticle:
-    def __init__(self, title: str, content: str, url: str, source: str, publish_time: str = ""):
+    def __init__(
+        self, title: str, content: str, url: str, source: str, publish_time: str = ""
+    ):
         self.title = title
         self.content = content[:500]
         self.url = url
@@ -47,8 +43,7 @@ class WebFetchService:
     """网页抓取服务"""
 
     def fetch_stock_pages(self, symbol: str) -> List[FetchedArticle]:
-        name = self._get_stock_name(symbol)
-        year = datetime.now().year
+        name = get_stock_name(symbol)
         articles = []
         seen_urls = set()
 
@@ -73,7 +68,7 @@ class WebFetchService:
 
     def fetch_url(self, url: str) -> Optional[FetchedArticle]:
         try:
-            resp = requests.get(url, headers=_HEADERS, timeout=_FETCH_TIMEOUT)
+            resp = requests.get(url, headers=HTTP_HEADERS, timeout=_FETCH_TIMEOUT)
             resp.raise_for_status()
             resp.encoding = resp.apparent_encoding or "utf-8"
 
@@ -90,7 +85,7 @@ class WebFetchService:
 
             content = self._extract_text(soup)
 
-            source = self._extract_domain(url)
+            source = extract_domain(url)
 
             return FetchedArticle(
                 title=title[:200],
@@ -112,7 +107,7 @@ class WebFetchService:
                 prefix = "hk"
 
             url = f"https://finance.sina.com.cn/realstock/company/{prefix}{symbol}/nc.shtml"
-            resp = requests.get(url, headers=_HEADERS, timeout=_FETCH_TIMEOUT)
+            resp = requests.get(url, headers=HTTP_HEADERS, timeout=_FETCH_TIMEOUT)
             resp.raise_for_status()
             resp.encoding = resp.apparent_encoding or "utf-8"
 
@@ -135,14 +130,18 @@ class WebFetchService:
 
     def _fetch_xueqiu(self, symbol: str, name: str) -> Optional[FetchedArticle]:
         try:
-            if symbol.startswith("6") or symbol.startswith("0") or symbol.startswith("3"):
+            if (
+                symbol.startswith("6")
+                or symbol.startswith("0")
+                or symbol.startswith("3")
+            ):
                 xq_symbol = f"SH{symbol}" if symbol.startswith("6") else f"SZ{symbol}"
             else:
                 xq_symbol = f"HK{symbol}"
 
             url = f"https://xueqiu.com/S/{xq_symbol}"
             session = requests.Session()
-            session.headers.update(_HEADERS)
+            session.headers.update(HTTP_HEADERS)
             session.get("https://xueqiu.com/", timeout=_FETCH_TIMEOUT)
 
             resp = session.get(url, timeout=_FETCH_TIMEOUT)
@@ -166,7 +165,9 @@ class WebFetchService:
             logger.warning(f"[WebFetch] 雪球抓取失败: {e}")
             return None
 
-    def _fetch_eastmoney_quote(self, symbol: str, name: str) -> Optional[FetchedArticle]:
+    def _fetch_eastmoney_quote(
+        self, symbol: str, name: str
+    ) -> Optional[FetchedArticle]:
         try:
             if symbol.startswith("6"):
                 em_code = f"1.{symbol}"
@@ -176,7 +177,7 @@ class WebFetchService:
                 em_code = f"116.{symbol}"
 
             url = f"https://quote.eastmoney.com/concept/{em_code}.html"
-            resp = requests.get(url, headers=_HEADERS, timeout=_FETCH_TIMEOUT)
+            resp = requests.get(url, headers=HTTP_HEADERS, timeout=_FETCH_TIMEOUT)
             resp.raise_for_status()
             resp.encoding = resp.apparent_encoding or "utf-8"
 
@@ -200,7 +201,7 @@ class WebFetchService:
     def _fetch_10jqka_news(self, symbol: str, name: str) -> Optional[FetchedArticle]:
         try:
             url = f"https://news.10jqka.com.cn/today_list/"
-            resp = requests.get(url, headers=_HEADERS, timeout=_FETCH_TIMEOUT)
+            resp = requests.get(url, headers=HTTP_HEADERS, timeout=_FETCH_TIMEOUT)
             resp.raise_for_status()
             resp.encoding = resp.apparent_encoding or "utf-8"
 
@@ -225,20 +226,6 @@ class WebFetchService:
         text = soup.get_text(separator="\n", strip=True)
         lines = [line.strip() for line in text.split("\n") if line.strip()]
         return "\n".join(lines)
-
-    def _extract_domain(self, url: str) -> str:
-        match = re.search(r'https?://(?:www\.)?([^/]+)', url)
-        return match.group(1) if match else url
-
-    def _get_stock_name(self, symbol: str) -> str:
-        _NAMES = {
-            "600519": "贵州茅台", "000858": "五粮液", "000333": "美的集团",
-            "601318": "中国平安", "600036": "招商银行", "000001": "平安银行",
-            "600900": "长江电力", "601012": "隆基绿能", "300750": "宁德时代",
-            "002594": "比亚迪", "600276": "恒瑞医药", "000568": "泸州老窖",
-            "00700": "腾讯控股", "09988": "阿里巴巴", "09888": "百度",
-        }
-        return _NAMES.get(symbol, f"股票{symbol}")
 
 
 _web_fetch_service: Optional[WebFetchService] = None

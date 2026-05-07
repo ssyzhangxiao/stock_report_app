@@ -1,4 +1,3 @@
-import akshare as ak
 import pandas as pd
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, Callable, List
@@ -12,7 +11,6 @@ from .stock_utils import is_sse, is_szse
 logger = logging.getLogger(__name__)
 
 _EM_TIMEOUT = 15
-
 
 _executor = concurrent.futures.ThreadPoolExecutor(max_workers=4, thread_name_prefix="em_fetch")
 atexit.register(_executor.shutdown, wait=False)
@@ -31,6 +29,16 @@ def _fetch(func: Callable, timeout: int = _EM_TIMEOUT):
 class EastMoneyDataSource(DataSource):
     """东方财富数据源"""
 
+    def __init__(self):
+        self._ak = None
+
+    @property
+    def _akshare(self):
+        if self._ak is None:
+            from .akshare_source import AkShareDataSource
+            self._ak = AkShareDataSource()
+        return self._ak
+
     @property
     def name(self) -> str:
         return "eastmoney"
@@ -38,224 +46,114 @@ class EastMoneyDataSource(DataSource):
     def is_available(self) -> bool:
         return True
 
-    @staticmethod
-    def _match_code(df: pd.DataFrame, col: str, symbol: str) -> pd.DataFrame:
-        if col in df.columns:
-            df[col] = df[col].astype(str).str.strip()
-            return df[df[col] == symbol]
-        return df.iloc[0:0]
-
     def get_daily(self, symbol: str, years: int = 2, adjust: str = "qfq") -> Optional[pd.DataFrame]:
-        try:
-            end = datetime.now().strftime("%Y%m%d")
-            start = (datetime.now() - timedelta(days=365 * years)).strftime("%Y%m%d")
-            result = _fetch(lambda: ak.stock_zh_a_hist(
-                symbol=symbol, period="daily",
-                start_date=start, end_date=end, adjust=adjust
-            ))
-            if result is None or (hasattr(result, 'empty') and result.empty):
-                return None
-            result.rename(columns={
-                '日期': 'date', '开盘': 'open', '收盘': 'close',
-                '最高': 'high', '最低': 'low', '成交量': 'volume',
-                '成交额': 'amount', '振幅': 'amplitude',
-                '涨跌幅': 'pct_chg', '涨跌额': 'change', '换手率': 'turnover'
-            }, inplace=True, errors='ignore')
-            result['date'] = pd.to_datetime(result['date'])
-            result.sort_values('date', inplace=True)
-            return result
-        except Exception as e:
-            logger.warning(f"[东财] 获取 {symbol} 行情失败: {e}")
-            return None
+        return self._akshare.get_daily(symbol, years, adjust)
 
     def get_company_info(self, symbol: str) -> Optional[Dict[str, Any]]:
-        try:
-            result = _fetch(lambda: ak.stock_individual_info_em(symbol=symbol))
-            if result is None or (hasattr(result, 'empty') and result.empty):
-                return None
-            data = dict(zip(result['item'], result['value']))
-            data["数据来源"] = "东方财富"
-            return data
-        except Exception as e:
-            logger.warning(f"[东财] 获取 {symbol} 公司信息失败: {e}")
-            return None
+        return self._akshare.get_company_info(symbol)
 
     def get_financial_indicators(self, symbol: str) -> Optional[pd.DataFrame]:
-        try:
-            result = _fetch(lambda: ak.stock_financial_analysis_indicator(symbol=symbol, start_year="2020"))
-            return result if isinstance(result, pd.DataFrame) and not result.empty else None
-        except Exception as e:
-            logger.warning(f"[东财] 获取 {symbol} 财务指标失败: {e}")
-            return None
+        return self._akshare.get_financial_indicators(symbol)
 
     def get_balance_sheet(self, symbol: str) -> Optional[pd.DataFrame]:
-        try:
-            result = _fetch(lambda: ak.stock_balance_sheet_by_report_em(symbol=symbol))
-            return result if isinstance(result, pd.DataFrame) and not result.empty else None
-        except Exception as e:
-            logger.warning(f"[东财] 获取 {symbol} 资产负债表失败: {e}")
-            return None
+        return self._akshare.get_balance_sheet(symbol)
 
     def get_cashflow(self, symbol: str) -> Optional[pd.DataFrame]:
+        return self._akshare.get_cashflow(symbol)
+
+    def get_free_cashflow(self, symbol: str, years: int = 5) -> Optional[pd.DataFrame]:
         try:
-            result = _fetch(lambda: ak.stock_cash_flow_by_report_em(symbol=symbol))
-            return result if isinstance(result, pd.DataFrame) and not result.empty else None
+            cashflow_df = self.get_cashflow(symbol)
+            if cashflow_df is None or cashflow_df.empty:
+                return None
+
+            result_df = cashflow_df.copy()
+
+            operating_cf_col = None
+            capex_col = None
+
+            for col in cashflow_df.columns:
+                col_lower = col.lower()
+                if '经营活动现金净额' in col or '经营活动产生的现金流量净额' in col:
+                    operating_cf_col = col
+                elif '投资活动现金净额' in col or '购建固定资产' in col or '资本支出' in col:
+                    capex_col = col
+
+            if operating_cf_col is None:
+                for col in cashflow_df.columns:
+                    if '经营' in col and '现金' in col:
+                        operating_cf_col = col
+                        break
+
+            if capex_col is None:
+                for col in cashflow_df.columns:
+                    if '投资' in col and '现金' in col and '净额' in col:
+                        capex_col = col
+                        break
+
+            if operating_cf_col is None:
+                logger.warning(f"[东财] {symbol} 找不到经营活动现金流列")
+                return None
+
+            result_df['报告日期'] = cashflow_df.iloc[:, 0]
+            result_df['经营活动现金流净额'] = cashflow_df[operating_cf_col] if operating_cf_col else 0
+
+            if capex_col:
+                capex_values = cashflow_df[capex_col].abs()
+            else:
+                capex_values = 0
+
+            result_df['资本支出'] = capex_values
+            result_df['自由现金流'] = result_df['经营活动现金流净额'] - result_df['资本支出']
+
+            if '报告日期' in result_df.columns:
+                result_df = result_df.sort_values('报告日期', ascending=False)
+
+            if years > 0:
+                result_df = result_df.head(years)
+
+            logger.info(f"[东财] {symbol} 自由现金流计算完成，共 {len(result_df)} 期")
+            return result_df
+
         except Exception as e:
-            logger.warning(f"[东财] 获取 {symbol} 现金流量表失败: {e}")
+            logger.warning(f"[东财] 计算 {symbol} 自由现金流失败: {e}")
             return None
 
     def get_income_statement(self, symbol: str) -> Optional[pd.DataFrame]:
-        try:
-            result = _fetch(lambda: ak.stock_profit_sheet_by_report_em(symbol=symbol))
-            return result if isinstance(result, pd.DataFrame) and not result.empty else None
-        except Exception as e:
-            logger.warning(f"[东财] 获取 {symbol} 利润表失败: {e}")
-            return None
+        return self._akshare.get_income_statement(symbol)
 
     def get_insider_holdings(self, symbol: str) -> Optional[pd.DataFrame]:
-        try:
-            if is_sse(symbol):
-                return _fetch(lambda: ak.stock_share_hold_change_sse(symbol=symbol))
-            elif is_szse(symbol):
-                return _fetch(lambda: ak.stock_share_hold_change_szse(symbol=symbol))
-            return None
-        except Exception as e:
-            logger.warning(f"[东财] 获取 {symbol} 高管持股失败: {e}")
-            return None
+        return self._akshare.get_insider_holdings(symbol)
 
     def get_margin_history(self, symbol: str, days: int = 10) -> Optional[List]:
-        """获取个股融资融券日度历史（用于折线图）"""
-        if not is_sse(symbol) and not is_szse(symbol):
-            return None
-        base = datetime.now()
-        dates = [(base - timedelta(days=i)).strftime('%Y%m%d') for i in range(1, days + 1)][:5]
-        rows = []
-        seen = set()
-        for d in dates:
-            if d in seen:
-                continue
-            seen.add(d)
-            try:
-                if is_sse(symbol):
-                    df = _fetch(lambda date=d: ak.stock_margin_detail_sse(date=date), timeout=5)
-                else:
-                    df = _fetch(lambda date=d: ak.stock_margin_detail_szse(date=date), timeout=5)
-                if df is None or not isinstance(df, pd.DataFrame) or df.empty:
-                    continue
-                code_col = [c for c in df.columns if '标的证券代码' in c][:1]
-                if not code_col:
-                    continue
-                sub = df[df[code_col[0]].astype(str).str.strip() == symbol]
-                if not sub.empty:
-                    row = sub.iloc[0]
-                    rows.append({
-                        "日期": d[:4] + "-" + d[4:6] + "-" + d[6:],
-                        "融资余额": float(row.get('融资余额', 0)),
-                        "融券余量": float(row.get('融券余量', 0)),
-                    })
-                    if len(rows) >= days:
-                        break
-            except Exception:
-                continue
-        return rows if len(rows) >= 3 else None
+        return self._akshare.get_margin_history(symbol, days)
 
     def get_margin_balance(self, symbol: str) -> Optional[pd.DataFrame]:
-        try:
-            today = datetime.now().strftime('%Y%m%d')
-            frames = []
-            sh = _fetch(lambda: ak.stock_margin_sse())
-            if isinstance(sh, pd.DataFrame) and not sh.empty and '证券代码' in sh.columns:
-                frames.append(self._match_code(sh, '证券代码', symbol))
-            sz = _fetch(lambda: ak.stock_margin_szse(date=today))
-            if isinstance(sz, pd.DataFrame) and not sz.empty:
-                sz = sz.rename(columns={
-                    '融资余额': '融资余额(元)', '融券余额': '融券余额(元)',
-                }, errors='ignore')
-                if '证券代码' in sz.columns:
-                    frames.append(self._match_code(sz, '证券代码', symbol))
-            if frames:
-                result = pd.concat(frames, ignore_index=True)
-                return result if not result.empty else None
-            return None
-        except Exception as e:
-            logger.warning(f"[东财] 获取 {symbol} 融资融券失败: {e}")
-            return None
+        return self._akshare.get_margin_balance(symbol)
 
     def get_pledge_ratio(self, symbol: str) -> Optional[pd.DataFrame]:
-        try:
-            date = datetime.now().strftime("%Y%m%d")
-            result = _fetch(lambda: ak.stock_gpzy_pledge_ratio_em(date=date))
-            if result is None:
-                return None
-            if isinstance(result, pd.DataFrame):
-                if result.empty:
-                    return None
-                return self._match_code(result, '股票代码', symbol)
-            return None
-        except Exception as e:
-            logger.warning(f"[东财] 获取 {symbol} 质押比例失败: {e}")
-            return None
+        return self._akshare.get_pledge_ratio(symbol)
 
     def get_cyq(self, symbol: str) -> Optional[pd.DataFrame]:
-        try:
-            return _fetch(lambda: ak.stock_cyq_em(symbol=symbol, adjust=""))
-        except Exception as e:
-            logger.warning(f"[东财] 获取 {symbol} 筹码分布失败: {e}")
-            return None
+        return self._akshare.get_cyq(symbol)
 
     def get_fund_flow(self, symbol: str) -> Optional[pd.DataFrame]:
-        try:
-            market = 'sh' if symbol.startswith(('6', '9')) else 'sz'
-            return _fetch(lambda: ak.stock_individual_fund_flow(stock=symbol, market=market))
-        except Exception as e:
-            logger.warning(f"[东财] 获取 {symbol} 资金流向失败: {e}")
-            return None
+        return self._akshare.get_fund_flow(symbol)
 
     def get_news(self, symbol: str) -> Optional[pd.DataFrame]:
-        try:
-            return _fetch(lambda: ak.stock_news_em(symbol=symbol))
-        except Exception as e:
-            logger.warning(f"[东财] 获取 {symbol} 新闻失败: {e}")
-            return None
+        return self._akshare.get_news(symbol)
 
     def get_analyst_rating(self, symbol: str) -> Optional[Dict[str, Any]]:
-        try:
-            df = _fetch(lambda: ak.stock_institute_recommend(symbol="最新投资评级"))
-            if df is None or not isinstance(df, pd.DataFrame) or df.empty:
-                return {"error": "未找到评级数据"}
-            df_stock = self._match_code(df, '股票代码', symbol)
-            if df_stock.empty:
-                return {"error": "未找到该股票评级数据"}
-            sorted_df = df_stock.sort_values('评级日期', ascending=False)
-            latest = sorted_df.iloc[0]
-            # 收集所有目标价数据（用于前端散点图）
-            price_history = []
-            for _, row in sorted_df.iterrows():
-                tp = row.get('目标价')
-                if pd.notna(tp):
-                    price_history.append({
-                        "日期": str(row.get('评级日期', '')),
-                        "目标价": float(tp),
-                        "评级": str(row.get('最新评级', '')),
-                        "机构": str(row.get('评级机构', '')),
-                    })
-            return {
-                "stock_code": str(latest.get('股票代码', '')),
-                "stock_name": str(latest.get('股票名称', '')),
-                "latest_rating": str(latest.get('最新评级', '')),
-                "target_price": float(latest.get('目标价', 0)) if pd.notna(latest.get('目标价')) else None,
-                "rating_date": str(latest.get('评级日期', '')),
-                "industry": str(latest.get('行业', '')),
-                "data_source": "东方财富",
-                "target_price_history": price_history[:30],
-            }
-        except Exception as e:
-            logger.warning(f"[东财] 获取 {symbol} 分析师评级失败: {e}")
-            return None
+        return self._akshare.get_analyst_rating(symbol)
 
     def get_profit_forecast(self, symbol: str) -> Optional[pd.DataFrame]:
-        try:
-            return _fetch(lambda: ak.stock_profit_forecast_em(symbol=symbol))
-        except Exception as e:
-            logger.warning(f"[东财] 获取 {symbol} 盈利预测失败: {e}")
-            return None
+        return self._akshare.get_profit_forecast(symbol)
+
+    def get_industry_index(self, industry_code: str = None, days: int = 180) -> Optional[pd.DataFrame]:
+        return self._akshare.get_industry_index(industry_code, days)
+
+    def get_industry_class(self, symbol: str) -> Optional[Dict[str, str]]:
+        return self._akshare.get_industry_class(symbol)
+
+    def get_capital_operation(self, symbol: str) -> Optional[Dict[str, Any]]:
+        return self._akshare.get_capital_operation(symbol)

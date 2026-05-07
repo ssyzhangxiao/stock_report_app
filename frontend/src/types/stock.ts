@@ -268,18 +268,4 @@ export interface ComparableCase {
   result: string;
 }
 
-export interface DexterResult {
-  symbol: string;
-  type: string;
-  success: boolean;
-  answer?: string;
-  toolCalls?: unknown[];
-  iterations?: number;
-  totalTime?: number;
-  error?: string;
-}
 
-export interface DexterHealthResponse {
-  available: boolean;
-  url: string;
-}

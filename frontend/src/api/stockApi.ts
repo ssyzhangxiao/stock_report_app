@@ -4,8 +4,6 @@ import type {
   SmartAnalysisResult,
   LLMProvidersResponse,
   ControlStatus,
-  DexterResult,
-  DexterHealthResponse,
   PeerCompany,
 } from '../types/stock';
 
@@ -92,39 +90,6 @@ export const getLLMProviders = async (): Promise<LLMProvidersResponse> => {
 export const getControlStatus = async (symbol: string): Promise<ControlStatus> => {
   const response = await api.get(`/analysis/control-status/${symbol}`, { timeout: 90000 });
   return response as unknown as ControlStatus;
-};
-
-export const checkDexterHealth = async (): Promise<DexterHealthResponse> => {
-  const response = await api.get('/analysis/dexter/health');
-  return response as unknown as DexterHealthResponse;
-};
-
-export const runDexterDCF = async (symbol: string, name?: string): Promise<DexterResult> => {
-  const response = await api.post(`/analysis/dexter/dcf/${symbol}`, null, {
-    params: name ? { name } : {},
-  });
-  return response as unknown as DexterResult;
-};
-
-export const runDexterXSentiment = async (symbol: string, name?: string): Promise<DexterResult> => {
-  const response = await api.post(`/analysis/dexter/x-sentiment/${symbol}`, null, {
-    params: name ? { name } : {},
-  });
-  return response as unknown as DexterResult;
-};
-
-export const runDexterInsider = async (symbol: string, name?: string): Promise<DexterResult> => {
-  const response = await api.post(`/analysis/dexter/insider/${symbol}`, null, {
-    params: name ? { name } : {},
-  });
-  return response as unknown as DexterResult;
-};
-
-export const runDexterReport = async (symbol: string, name?: string): Promise<DexterResult> => {
-  const response = await api.post(`/analysis/dexter/report/${symbol}`, null, {
-    params: name ? { name } : {},
-  });
-  return response as unknown as DexterResult;
 };
 
 // 获取可比公司列表

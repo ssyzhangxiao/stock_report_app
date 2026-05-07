@@ -19,23 +19,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from .web_search_service import get_web_search_service, WebSearchResult
 from .web_fetch_service import get_web_fetch_service, FetchedArticle
+from .sentiment_constants import classify_sentiment
 
 logger = logging.getLogger(__name__)
-
-POSITIVE_KW = ['增长', '新高', '买入', '增持', '利好', '超预期', '突破', '上涨', '盈利',
-               '回购', '分红', '业绩预增', '订单', '扩产', '创新高', '机构买入']
-NEGATIVE_KW = ['下跌', '风险', '减持', '利空', '调查', '诉讼', '亏损', '下滑', '违规',
-               '退市', '质押', '爆仓', '处罚', '警示', '问询', '监管']
-
-
-def _classify_sentiment(text: str) -> str:
-    pos = sum(1 for kw in POSITIVE_KW if kw in text)
-    neg = sum(1 for kw in NEGATIVE_KW if kw in text)
-    if pos > neg:
-        return "positive"
-    elif neg > pos:
-        return "negative"
-    return "neutral"
 
 
 def _deduplicate(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -52,7 +38,9 @@ def _deduplicate(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 class NewsAggregator:
     """多源新闻聚合器"""
 
-    def aggregate(self, symbol: str, existing_news: List[Dict] = None) -> Dict[str, Any]:
+    def aggregate(
+        self, symbol: str, existing_news: List[Dict] = None
+    ) -> Dict[str, Any]:
         """
         聚合多源新闻
         返回: {
@@ -75,47 +63,69 @@ class NewsAggregator:
             for future in as_completed([search_future, fetch_future], timeout=20):
                 try:
                     result = future.result(timeout=10)
-                    if isinstance(result, list) and result and isinstance(result[0], WebSearchResult):
+                    if (
+                        isinstance(result, list)
+                        and result
+                        and isinstance(result[0], WebSearchResult)
+                    ):
                         search_results = result
-                    elif isinstance(result, list) and result and isinstance(result[0], FetchedArticle):
+                    elif (
+                        isinstance(result, list)
+                        and result
+                        and isinstance(result[0], FetchedArticle)
+                    ):
                         fetch_results = result
                 except Exception as e:
                     logger.warning(f"[NewsAggregator] 子任务失败: {e}")
 
         for sr in search_results:
-            all_news.append({
-                "title": sr.title,
-                "content": sr.snippet[:300],
-                "publish_time": datetime.now().strftime("%Y-%m-%d"),
-                "source": sr.source,
-                "source_type": "web_search",
-                "url": sr.url,
-                "sentiment": _classify_sentiment(sr.title + sr.snippet),
-            })
+            all_news.append(
+                {
+                    "title": sr.title,
+                    "content": sr.snippet[:300],
+                    "publish_time": datetime.now().strftime("%Y-%m-%d"),
+                    "source": sr.source,
+                    "source_type": "web_search",
+                    "url": sr.url,
+                    "sentiment": classify_sentiment(sr.title + sr.snippet),
+                }
+            )
 
         for fa in fetch_results:
-            all_news.append({
-                "title": fa.title,
-                "content": fa.content[:300],
-                "publish_time": fa.publish_time,
-                "source": fa.source,
-                "source_type": "web_fetch",
-                "url": fa.url,
-                "sentiment": _classify_sentiment(fa.title + fa.content),
-            })
+            all_news.append(
+                {
+                    "title": fa.title,
+                    "content": fa.content[:300],
+                    "publish_time": fa.publish_time,
+                    "source": fa.source,
+                    "source_type": "web_fetch",
+                    "url": fa.url,
+                    "sentiment": classify_sentiment(fa.title + fa.content),
+                }
+            )
 
         all_news = _deduplicate(all_news)
 
-        all_news.sort(key=lambda x: (
-            0 if x.get("source_type") == "api" else 1 if x.get("source_type") == "web_fetch" else 2,
-            x.get("publish_time", ""),
-        ))
+        all_news.sort(
+            key=lambda x: (
+                0
+                if x.get("source_type") == "api"
+                else 1
+                if x.get("source_type") == "web_fetch"
+                else 2,
+                x.get("publish_time", ""),
+            )
+        )
 
-        sources_summary = self._build_sources_summary(all_news, search_results, fetch_results)
+        sources_summary = self._build_sources_summary(
+            all_news, search_results, fetch_results
+        )
 
-        logger.info(f"[NewsAggregator] 聚合完成: API新闻{len(existing_news or [])}条, "
-                     f"搜索{len(search_results)}条, 抓取{len(fetch_results)}条, "
-                     f"去重后{len(all_news)}条")
+        logger.info(
+            f"[NewsAggregator] 聚合完成: API新闻{len(existing_news or [])}条, "
+            f"搜索{len(search_results)}条, 抓取{len(fetch_results)}条, "
+            f"去重后{len(all_news)}条"
+        )
 
         return {
             "news_analysis": all_news,
@@ -140,8 +150,14 @@ class NewsAggregator:
             logger.warning(f"[NewsAggregator] 网页抓取失败: {e}")
             return []
 
-    def _build_sources_summary(self, all_news, search_results, fetch_results) -> Dict[str, Any]:
-        api_count = sum(1 for n in all_news if n.get("source_type") == "api" or not n.get("source_type"))
+    def _build_sources_summary(
+        self, all_news, search_results, fetch_results
+    ) -> Dict[str, Any]:
+        api_count = sum(
+            1
+            for n in all_news
+            if n.get("source_type") == "api" or not n.get("source_type")
+        )
         search_count = len(search_results)
         fetch_count = len(fetch_results)
 

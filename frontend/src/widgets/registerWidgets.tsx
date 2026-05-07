@@ -25,6 +25,9 @@ import RiskScoreCard from '../components/cards/RiskScoreCard';
 import UnifiedDataPanel from '../components/panels/UnifiedDataPanel';
 import CompanyProfileCard from '../components/cards/CompanyProfileCard';
 import CapitalOperationPanel from '../components/panels/CapitalOperationPanel';
+import ROEAnalysis from '../components/charts/ROEAnalysis';
+import MACDAnalysis from '../components/charts/MACDAnalysis';
+import KDJAnalysis from '../components/charts/KDJAnalysis';
 
 function registerAllWidgets(): void {
   const registrations: Array<{ meta: WidgetMeta; component: React.ComponentType<WidgetProps> }> = [
@@ -76,6 +79,25 @@ function registerAllWidgets(): void {
 
     {
       meta: {
+        id: 'roe-analysis',
+        name: 'ROE分析',
+        description: '净资产收益率(ROE)分析与杜邦分析',
+        category: 'chart',
+        icon: '📈',
+        requiredData: ['deep_financial'],
+        implemented: true,
+        defaultSize: { w: 40, h: 28 },
+        tags: ['财务', '深度', '估值'],
+      },
+      component: ({ data }: WidgetProps) => (
+        <ROEAnalysis
+          financialIndicators={data.deep_financial?.financial_indicators || []}
+        />
+      ),
+    },
+
+    {
+      meta: {
         id: 'peer-comparison',
         name: '同行对比',
         description: '可比公司PE/PB/市值对比',
@@ -86,19 +108,9 @@ function registerAllWidgets(): void {
         defaultSize: { w: 20, h: 15 },
         tags: ['估值', '深度'],
       },
-      component: () => (
+      component: ({ data }: WidgetProps) => (
         <PeerComparison
-          companies={[
-            { name: '贵州茅台', marketCap: 18500, peRatio: 28.5, pbRatio: 6.4, isTarget: true },
-            { name: '五粮液', marketCap: 5200, peRatio: 20.5, pbRatio: 2.9, isTarget: false },
-            { name: '山西汾酒', marketCap: 2800, peRatio: 22.3, pbRatio: 3.9, isTarget: false },
-            { name: '泸州老窖', marketCap: 3500, peRatio: 23.2, pbRatio: 2.9, isTarget: false },
-            { name: '酒鬼酒', marketCap: 480, peRatio: 32.1, pbRatio: 3.7, isTarget: false },
-            { name: '水井坊', marketCap: 320, peRatio: 25.8, pbRatio: 3.0, isTarget: false },
-            { name: '舍得酒业', marketCap: 520, peRatio: 26.5, pbRatio: 2.6, isTarget: false },
-            { name: '迎驾贡酒', marketCap: 620, peRatio: 21.8, pbRatio: 2.7, isTarget: false },
-            { name: '今世缘', marketCap: 720, peRatio: 19.2, pbRatio: 2.4, isTarget: false }
-          ]}
+          symbol={data.symbol}
         />
       ),
     },
@@ -320,13 +332,44 @@ function registerAllWidgets(): void {
         implemented: true,
         tags: ['新闻', '概览'],
       },
-      component: () => {
+      component: ({ data }: WidgetProps) => {
+        const sourcesSummary = data.sources_summary;
+
+        let sentimentScore = 50;
+        let sentimentLabel = '中性';
+        let sentimentColor = '#faad14';
+
+        if (sourcesSummary?.sentiment_distribution) {
+          const { positive, negative, neutral } = sourcesSummary.sentiment_distribution;
+          const total = positive + negative + neutral;
+          if (total > 0) {
+            sentimentScore = Math.round(((positive * 100 + neutral * 50) / total));
+            if (sentimentScore >= 65) {
+              sentimentLabel = '乐观';
+              sentimentColor = '#52c41a';
+            } else if (sentimentScore <= 35) {
+              sentimentLabel = '悲观';
+              sentimentColor = '#ff4d4f';
+            }
+          }
+        }
+
         return (
           <div style={{ padding: '20px', textAlign: 'center' }}>
             <div style={{ fontSize: 48, marginBottom: 12 }}>😊</div>
-            <div style={{ fontSize: 24, fontWeight: 600, marginBottom: 8 }}>市场情绪：乐观</div>
-            <div style={{ color: '#52c41a', fontSize: 18 }}>情绪指数：72/100</div>
-            <div style={{ marginTop: 16, color: '#8c8c8c', fontSize: 12 }}>（占位组件：等待真实数据接口）</div>
+            <div style={{ fontSize: 24, fontWeight: 600, marginBottom: 8 }}>市场情绪：{sentimentLabel}</div>
+            <div style={{ color: sentimentColor, fontSize: 18 }}>情绪指数：{sentimentScore}/100</div>
+            <div style={{ marginTop: 16, display: 'flex', justifyContent: 'center', gap: 16 }}>
+              <div>
+                <div style={{ color: '#52c41a', fontSize: 14 }}>正面 {sourcesSummary?.sentiment_distribution?.positive || 0}</div>
+              </div>
+              <div>
+                <div style={{ color: '#faad14', fontSize: 14 }}>中性 {sourcesSummary?.sentiment_distribution?.neutral || 0}</div>
+              </div>
+              <div>
+                <div style={{ color: '#ff4d4f', fontSize: 14 }}>负面 {sourcesSummary?.sentiment_distribution?.negative || 0}</div>
+              </div>
+            </div>
           </div>
         );
       },
@@ -341,11 +384,27 @@ function registerAllWidgets(): void {
         implemented: true,
         tags: ['新闻'],
       },
-      component: () => {
+      component: ({ data }: WidgetProps) => {
+        const newsData = data.news_analysis || [];
+        const industryNews = newsData.filter((news: any) =>
+          news.source_type === 'industry' || news.type === 'industry_news'
+        ).slice(0, 5);
+
         return (
           <div style={{ padding: '20px' }}>
             <h3 style={{ marginBottom: 12, color: '#1f2937' }}>🏭 行业新闻</h3>
-            <div style={{ color: '#8c8c8c', fontSize: 12 }}>（占位组件：等待真实数据接口）</div>
+            {industryNews.length > 0 ? (
+              <div>
+                {industryNews.map((news: any, index: number) => (
+                  <div key={index} style={{ marginBottom: 8, paddingBottom: 8, borderBottom: '1px solid #f0f0f0' }}>
+                    <div style={{ fontSize: 13, color: '#333', marginBottom: 4 }}>{news.title}</div>
+                    <div style={{ fontSize: 11, color: '#999' }}>{news.publish_time || news.time} · {news.source}</div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ color: '#8c8c8c', fontSize: 12 }}>暂无行业新闻</div>
+            )}
           </div>
         );
       },
@@ -360,12 +419,34 @@ function registerAllWidgets(): void {
         implemented: true,
         tags: ['资金'],
       },
-      component: () => {
+      component: ({ data }: WidgetProps) => {
+        const fundFlowData = data.fund_flow || [];
+
+        if (!fundFlowData || fundFlowData.length === 0) {
+          return (
+            <div style={{ padding: '20px', textAlign: 'center' }}>
+              <div style={{ fontSize: 36, marginBottom: 12 }}>📉</div>
+              <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>历史资金流向</div>
+              <div style={{ color: '#8c8c8c', fontSize: 12 }}>暂无资金流向数据</div>
+            </div>
+          );
+        }
+
+        const latestFlow = fundFlowData[0] || {};
+        const netInflowVal = latestFlow['主力净流入'] || latestFlow['net_inflow'];
+        const netInflow = typeof netInflowVal === 'number' ? netInflowVal : 0;
+        const isPositive = netInflow >= 0;
+
         return (
           <div style={{ padding: '20px', textAlign: 'center' }}>
-            <div style={{ fontSize: 36, marginBottom: 12 }}>📉</div>
+            <div style={{ fontSize: 36, marginBottom: 12 }}>{isPositive ? '📈' : '📉'}</div>
             <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>历史资金流向</div>
-            <div style={{ color: '#8c8c8c', fontSize: 12 }}>（占位组件：等待真实数据接口）</div>
+            <div style={{ color: isPositive ? '#52c41a' : '#ff4d4f', fontSize: 16 }}>
+              主力净流入: {isPositive ? '+' : ''}{netInflow.toFixed(2)} 万
+            </div>
+            <div style={{ marginTop: 12, color: '#8c8c8c', fontSize: 11 }}>
+              近 {fundFlowData.length} 日资金流向
+            </div>
           </div>
         );
       },
@@ -380,11 +461,46 @@ function registerAllWidgets(): void {
         implemented: true,
         tags: ['资金'],
       },
-      component: () => {
+      component: ({ data }: WidgetProps) => {
+        const fundFlowData = data.fund_flow || [];
+
+        if (!fundFlowData || fundFlowData.length === 0) {
+          return (
+            <div style={{ padding: '20px' }}>
+              <h3 style={{ marginBottom: 12, color: '#1f2937' }}>💪 主力资金</h3>
+              <div style={{ color: '#8c8c8c', fontSize: 12 }}>暂无数据</div>
+            </div>
+          );
+        }
+
+        const latestFlow = fundFlowData[0] || {};
+        const superInflow = latestFlow['超大单净流入'] || latestFlow['super_inflow'] || 0;
+        const bigInflow = latestFlow['大单净流入'] || latestFlow['big_inflow'] || 0;
+        const mainNet = Number(superInflow) + Number(bigInflow);
+
         return (
           <div style={{ padding: '20px' }}>
             <h3 style={{ marginBottom: 12, color: '#1f2937' }}>💪 主力资金</h3>
-            <div style={{ color: '#8c8c8c', fontSize: 12 }}>（占位组件：等待真实数据接口）</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <div style={{ textAlign: 'center', padding: 8, background: '#f5f5f5', borderRadius: 4 }}>
+                <div style={{ fontSize: 11, color: '#999' }}>超大单净流入</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: Number(superInflow) >= 0 ? '#52c41a' : '#ff4d4f' }}>
+                  {Number(superInflow).toFixed(0)} 万
+                </div>
+              </div>
+              <div style={{ textAlign: 'center', padding: 8, background: '#f5f5f5', borderRadius: 4 }}>
+                <div style={{ fontSize: 11, color: '#999' }}>大单净流入</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: Number(bigInflow) >= 0 ? '#52c41a' : '#ff4d4f' }}>
+                  {Number(bigInflow).toFixed(0)} 万
+                </div>
+              </div>
+            </div>
+            <div style={{ marginTop: 8, textAlign: 'center', padding: 8, background: mainNet >= 0 ? '#f6ffed' : '#fff2f0', borderRadius: 4 }}>
+              <div style={{ fontSize: 11, color: '#999' }}>主力合计</div>
+              <div style={{ fontSize: 16, fontWeight: 600, color: mainNet >= 0 ? '#52c41a' : '#ff4d4f' }}>
+                {mainNet >= 0 ? '+' : ''}{mainNet.toFixed(0)} 万
+              </div>
+            </div>
           </div>
         );
       },
@@ -782,12 +898,33 @@ function registerAllWidgets(): void {
         implemented: true,
         tags: ['资金'],
       },
-      component: () => {
+      component: ({ data }: WidgetProps) => {
+        // 使用类型断言避免错误，因为这些字段可能不在类型定义中
+        const dataAsAny = data as any;
+        const northFlow = dataAsAny.northbound_flow || dataAsAny.north_flow || {};
+        const historyData = northFlow.history || northFlow.data || [];
+        const latestData = historyData[0] || {};
+
+        const netInflowVal = latestData['北向资金净流入'] || latestData.net_inflow;
+        const netInflow = typeof netInflowVal === 'number' ? netInflowVal : 0;
+        const isPositive = netInflow >= 0;
+
         return (
           <div style={{ padding: '20px', textAlign: 'center' }}>
             <div style={{ fontSize: 36, marginBottom: 12 }}>🧭</div>
             <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>北向资金</div>
-            <div style={{ color: '#8c8c8c', fontSize: 12 }}>（占位组件：等待真实数据接口）</div>
+            {historyData.length > 0 ? (
+              <>
+                <div style={{ color: isPositive ? '#52c41a' : '#ff4d4f', fontSize: 16 }}>
+                  净流入: {isPositive ? '+' : ''}{netInflow.toFixed(2)} 亿
+                </div>
+                <div style={{ marginTop: 8, color: '#8c8c8c', fontSize: 11 }}>
+                  近 {historyData.length} 日北向资金
+                </div>
+              </>
+            ) : (
+              <div style={{ color: '#8c8c8c', fontSize: 12 }}>暂无数据</div>
+            )}
           </div>
         );
       },
@@ -1049,16 +1186,12 @@ function registerAllWidgets(): void {
         category: 'chart',
         icon: '📉',
         implemented: true,
+        requiredData: ['history', 'technical'],
         tags: ['技术'],
+        defaultSize: { w: 40, h: 28 },
       },
-      component: () => {
-        return (
-          <div style={{ padding: '20px', textAlign: 'center' }}>
-            <div style={{ fontSize: 36, marginBottom: 12 }}>📉</div>
-            <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>MACD分析</div>
-            <div style={{ color: '#8c8c8c', fontSize: 12 }}>（占位组件：等待真实数据接口）</div>
-          </div>
-        );
+      component: ({ data }) => {
+        return <MACDAnalysis data={data} />;
       },
     },
     {
@@ -1069,16 +1202,12 @@ function registerAllWidgets(): void {
         category: 'chart',
         icon: '📊',
         implemented: true,
+        requiredData: ['history', 'technical'],
         tags: ['技术'],
+        defaultSize: { w: 40, h: 28 },
       },
-      component: () => {
-        return (
-          <div style={{ padding: '20px', textAlign: 'center' }}>
-            <div style={{ fontSize: 36, marginBottom: 12 }}>📊</div>
-            <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>KDJ分析</div>
-            <div style={{ color: '#8c8c8c', fontSize: 12 }}>（占位组件：等待真实数据接口）</div>
-          </div>
-        );
+      component: ({ data }) => {
+        return <KDJAnalysis data={data} />;
       },
     },
     {

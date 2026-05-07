@@ -10,7 +10,7 @@ from .market import MarketDataProvider
 from .research import ResearchProvider
 from .news import NewsProvider
 from .financials import FinancialsProvider
-from .announcements import AnnouncementProvider
+from .announcements import AnnouncementsProvider as AnnouncementProvider
 
 logger = logging.getLogger(__name__)
 

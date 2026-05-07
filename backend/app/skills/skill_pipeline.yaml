@@ -1,0 +1,414 @@
+# Skill Pipeline 配置 - 建立数据源、Skill、前端组件的映射关系
+# 版本: v1.0
+
+# ==================== 分析模式定义 ====================
+analysis_modes:
+  quick-view:
+    name: "⚡ 快速概览"
+    description: "5分钟内获取核心指标"
+    icon: "⚡"
+    estimated_duration: 5
+    skills:
+      - pe-pb-valuation
+
+  deep-valuation:
+    name: "💎 深度估值分析"
+    description: "DCF + PE/PB 多维度估值"
+    icon: "💎"
+    estimated_duration: 25
+    skills:
+      - dcf-valuation
+      - pe-pb-valuation
+
+  risk-analysis:
+    name: "🛡️ 风险控制分析"
+    description: "全面风险评估"
+    icon: "🛡️"
+    estimated_duration: 16
+    skills:
+      - pledge-risk
+      - news-sentiment
+
+  technical-scan:
+    name: "🔍 技术面扫描"
+    description: "技术指标 + 行业对比"
+    icon: "🔍"
+    estimated_duration: 22
+    skills:
+      - technical-trend
+      - industry-analysis
+
+  fundamental-check:
+    name: "🏥 基本面体检"
+    description: "财务健康 + 资本运作"
+    icon: "🏥"
+    estimated_duration: 27
+    skills:
+      - financial-health
+      - capital-operation
+
+  full-report-mode:
+    name: "📑 完整分析报告"
+    description: "全方位深度分析"
+    icon: "📑"
+    estimated_duration: 120
+    skills:
+      - dcf-valuation
+      - pe-pb-valuation
+      - pledge-risk
+      - technical-trend
+      - industry-analysis
+      - news-sentiment
+      - capital-operation
+      - financial-health
+      - full-report
+
+# ==================== Skill 定义 ====================
+skills:
+  # 估值类 Skill
+  dcf-valuation:
+    name: "DCF 估值"
+    description: "现金流折现估值模型"
+    category: valuation
+    icon: "💰"
+    estimated_duration: 15
+    data_sources:
+      - name: "free_cashflow"
+        source: "eastmoney"
+        method: "get_free_cashflow"
+        params:
+          years: 5
+      - name: "latest_price"
+        source: "eastmoney"
+        method: "get_realtime_data"
+      - name: "shares_outstanding"
+        source: "eastmoney"
+        method: "get_financial_data"
+    required_widgets:
+      - dcf-valuation
+      - sensitivity-heatmap
+      - valuation-comparison
+
+  pe-pb-valuation:
+    name: "PE/PB 估值"
+    description: "市盈率市净率相对估值"
+    category: valuation
+    icon: "📊"
+    estimated_duration: 10
+    data_sources:
+      - name: "valuation"
+        source: "eastmoney"
+        method: "get_valuation"
+      - name: "latest_price"
+        source: "eastmoney"
+        method: "get_realtime_data"
+      - name: "peer_comparison"
+        source: "eastmoney"
+        method: "get_industry_index"
+    required_widgets:
+      - valuation-card
+      - peer-comparison
+      - valuation-comparison
+
+  # 风险类 Skill
+  pledge-risk:
+    name: "股权质押风险"
+    description: "股权质押风险分析"
+    category: risk
+    icon: "⚠️"
+    estimated_duration: 8
+    data_sources:
+      - name: "pledge_ratio"
+        source: "eastmoney"
+        method: "get_pledge_ratio"
+      - name: "cyq"
+        source: "eastmoney"
+        method: "get_cyq_data"
+    required_widgets:
+      - pledge-risk
+      - risk-indicators-panel
+
+  # 技术类 Skill
+  technical-trend:
+    name: "技术趋势"
+    description: "技术指标分析"
+    category: technical
+    icon: "📈"
+    estimated_duration: 12
+    data_sources:
+      - name: "history"
+        source: "eastmoney"
+        method: "get_history"
+      - name: "technical_indicators"
+        source: "eastmoney"
+        method: "get_technical_indicators"
+      - name: "fund_flow"
+        source: "eastmoney"
+        method: "get_fund_flow"
+    required_widgets:
+      - kline-chart
+      - technical-indicators
+      - fund-flow-chart
+
+  # 行业类 Skill
+  industry-analysis:
+    name: "行业分析"
+    description: "行业对比分析"
+    category: industry
+    icon: "🏭"
+    estimated_duration: 10
+    data_sources:
+      - name: "industry_index"
+        source: "eastmoney"
+        method: "get_industry_index"
+      - name: "industry_class"
+        source: "eastmoney"
+        method: "get_industry_class"
+      - name: "peer_data"
+        source: "eastmoney"
+        method: "get_industry_index"
+    required_widgets:
+      - industry-news
+      - peer-comparison
+      - industry-index-chart
+
+  # 新闻类 Skill
+  news-sentiment:
+    name: "新闻情绪"
+    description: "舆情分析"
+    category: news
+    icon: "📰"
+    estimated_duration: 8
+    data_sources:
+      - name: "news_analysis"
+        source: "eastmoney"
+        method: "get_news_analysis"
+      - name: "sources_summary"
+        source: "eastmoney"
+        method: "get_sources_summary"
+    required_widgets:
+      - market-sentiment
+      - news-section
+
+  # 资本运作类 Skill
+  capital-operation:
+    name: "资本运作"
+    description: "分红、回购、增持等"
+    category: capital
+    icon: "💼"
+    estimated_duration: 12
+    data_sources:
+      - name: "capital_operation"
+        source: "eastmoney"
+        method: "get_capital_operation"
+      - name: "dividends"
+        source: "eastmoney"
+        method: "get_dividends"
+      - name: "buybacks"
+        source: "eastmoney"
+        method: "get_buybacks"
+    required_widgets:
+      - capital-operation
+      - dividends-info
+      - buyback-info
+
+  # 财务类 Skill
+  financial-health:
+    name: "财务健康"
+    description: "财务指标分析"
+    category: financial
+    icon: "📋"
+    estimated_duration: 15
+    data_sources:
+      - name: "deep_financial"
+        source: "eastmoney"
+        method: "get_deep_financial"
+      - name: "cashflow"
+        source: "eastmoney"
+        method: "get_cashflow"
+      - name: "balance_sheet"
+        source: "eastmoney"
+        method: "get_balance_sheet"
+    required_widgets:
+      - deep-financial-table
+      - financial-indicators
+      - financial-trend
+
+  # 报告类 Skill
+  full-report:
+    name: "完整报告"
+    description: "整合所有分析生成报告"
+    category: report
+    icon: "📄"
+    estimated_duration: 30
+    data_sources: []
+    required_widgets:
+      - smart-analysis
+      - risk-summary
+      - investment-recommendations
+
+# ==================== 数据源定义 ====================
+data_sources:
+  eastmoney:
+    name: "东方财富"
+    enabled: true
+    priority: 1
+    methods:
+      - get_history
+      - get_realtime_data
+      - get_valuation
+      - get_financial_data
+      - get_cashflow
+      - get_balance_sheet
+      - get_income_statement
+      - get_deep_financial
+      - get_news_analysis
+      - get_sources_summary
+      - get_fund_flow
+      - get_pledge_ratio
+      - get_cyq_data
+      - get_technical_indicators
+      - get_industry_index
+      - get_industry_class
+      - get_capital_operation
+      - get_dividends
+      - get_buybacks
+      - get_free_cashflow
+
+  sina:
+    name: "新浪"
+    enabled: true
+    priority: 2
+    methods:
+      - get_history
+      - get_realtime_data
+
+  unified:
+    name: "统一数据层"
+    enabled: true
+    priority: 0
+    description: "自动选择最佳数据源"
+
+# ==================== Widget 映射 ====================
+widgets:
+  # 图表类
+  kline-chart:
+    data_required:
+      - history
+    fallback: "暂无K线数据"
+
+  fund-flow-chart:
+    data_required:
+      - fund_flow
+    fallback: "暂无资金流向数据"
+
+  industry-index-chart:
+    data_required:
+      - industry_index
+    fallback: "暂无行业指数数据"
+
+  sensitivity-heatmap:
+    data_required:
+      - latest_price
+    fallback: "暂无敏感性分析数据"
+
+  # 卡片类
+  dcf-valuation:
+    data_required:
+      - free_cashflow
+      - latest_price
+    fallback: "暂无DCF估值数据"
+
+  valuation-card:
+    data_required:
+      - valuation
+      - latest_price
+    fallback: "暂无估值数据"
+
+  peer-comparison:
+    data_required:
+      - peer_comparison
+    fallback: "暂无同行对比数据"
+
+  market-sentiment:
+    data_required:
+      - sources_summary
+    fallback: "暂无情绪数据"
+
+  main-force-flow:
+    data_required:
+      - fund_flow
+    fallback: "暂无主力资金数据"
+
+  northbound-flow:
+    data_required:
+      - northbound_flow
+    fallback: "暂无北向资金数据"
+
+  # 面板类
+  news-section:
+    data_required:
+      - news_analysis
+    fallback: "暂无新闻数据"
+
+  industry-news:
+    data_required:
+      - news_analysis
+    fallback: "暂无行业新闻"
+
+  risk-indicators-panel:
+    data_required:
+      - pledge_ratio
+    fallback: "暂无风险指标"
+
+  # 表格类
+  deep-financial-table:
+    data_required:
+      - deep_financial
+    fallback: "暂无财务数据"
+
+  financial-indicators:
+    data_required:
+      - deep_financial
+    fallback: "暂无财务指标"
+
+  financial-trend:
+    data_required:
+      - deep_financial
+    fallback: "暂无财务趋势"
+
+  # 报告类
+  smart-analysis:
+    data_required:
+      - symbol
+    fallback: "暂无智能分析"
+
+  capital-operation:
+    data_required:
+      - capital_operation
+    fallback: "暂无资本运作数据"
+
+# ==================== 数据优先级配置 ====================
+# 当多个数据源提供同一数据时，按优先级选择
+data_priority:
+  history:
+    - source: eastmoney
+      score: 10
+    - source: sina
+      score: 5
+
+  valuation:
+    - source: eastmoney
+      score: 10
+
+  fund_flow:
+    - source: eastmoney
+      score: 10
+
+  news_analysis:
+    - source: eastmoney
+      score: 10
+
+  deep_financial:
+    - source: eastmoney
+      score: 10

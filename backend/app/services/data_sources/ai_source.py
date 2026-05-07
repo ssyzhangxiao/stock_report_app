@@ -3,13 +3,25 @@ import logging
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 
-from .base import DataSource
+from .base import AIDataSource
 from ..llm_service import get_llm_service
 
 logger = logging.getLogger(__name__)
 
 
-_TODAY = datetime.now().strftime("%Y年%m月%d日")
+def _today() -> str:
+    return datetime.now().strftime("%Y年%m月%d日")
+
+
+def _extract_json(content: str, bracket: str = "{") -> Optional[Any]:
+    if not content:
+        return None
+    close_bracket = "}" if bracket == "{" else "]"
+    start = content.find(bracket)
+    end = content.rfind(close_bracket) + 1
+    if start == -1 or end == 0:
+        return None
+    return json.loads(content[start:end])
 
 
 def _call_ai(prompt: str) -> Optional[Dict[str, Any]]:
@@ -22,13 +34,10 @@ def _call_ai(prompt: str) -> Optional[Dict[str, Any]]:
             user_prompt=prompt,
             use_json_mode=True,
         )
-        if not content:
+        result = _extract_json(content, "{")
+        if result is None:
             return None
-        start = content.find("{")
-        end = content.rfind("}") + 1
-        if start == -1 or end == 0:
-            return None
-        return json.loads(content[start:end])
+        return result if isinstance(result, dict) else None
     except Exception as e:
         logger.warning(f"[AI] 调用失败: {e}")
         return None
@@ -44,18 +53,13 @@ def _call_ai_list(prompt: str) -> Optional[List]:
             user_prompt=prompt,
             use_json_mode=True,
         )
-        if not content:
-            return None
-        start = content.find("[")
-        end = content.rfind("]") + 1
-        if start == -1 or end == 0:
-            start = content.find("{")
-            end = content.rfind("}") + 1
-            if start == -1 or end == 0:
+        result = _extract_json(content, "[")
+        if result is None:
+            result = _extract_json(content, "{")
+            if result is None:
                 return None
-            result = json.loads(content[start:end])
             return [result] if isinstance(result, dict) else result
-        return json.loads(content[start:end])
+        return result if isinstance(result, list) else [result]
     except Exception as e:
         logger.warning(f"[AI] 列表调用失败: {e}")
         return None
@@ -69,7 +73,7 @@ def _merge_analysis(base: Dict[str, Any], ext: Dict[str, Any]) -> Dict[str, Any]
     return result
 
 
-class _BaseAIDataSource(DataSource):
+class _BaseAIDataSource(AIDataSource):
     """AI 数据源基类（Qwen / DeepSeek 共用逻辑）"""
 
     _provider: str = ""
@@ -78,30 +82,19 @@ class _BaseAIDataSource(DataSource):
         llm = get_llm_service()
         return llm.is_available()
 
-    def get_daily(self, symbol: str, years: int = 2, adjust: str = "qfq") -> Optional:
-        return None
-
-    def get_company_info(self, symbol: str) -> Optional[Dict[str, Any]]:
-        return self.fetch_comprehensive_data(symbol)
-
-    # ---- 综合数据拉取（一次调用获取全量结构化数据） ----
-
     def fetch_comprehensive_data(self, symbol: str) -> Optional[Dict[str, Any]]:
-        """获取估值+质押+两融+评级关键数据"""
-        prompt = f"""当前日期：{_TODAY}
+        today = _today()
+        prompt = f"""当前日期：{today}
 你是并购顾问，对股票{symbol}做控制权转让前尽职调查，返回JSON：
 {{"company_info":{{"总市值":"万亿元","市盈率-动态":数值,"市净率":数值,"行业":"行业","主营业务":"主营","行业平均市盈率":数值}},"financial_summary":{{"营业收入(亿元)":数值,"净利润(亿元)":数值,"roe(%)":数值,"资产负债率(%)":数值,"每股收益(元)":数值,"参考市值(行业PE×净利润)":"万亿元"}},"risk_indicators":{{"pledge":[{{"质押比例(%)":数值}}],"margin":[{{"融资余额(元)":数值}}]}},"analyst":{{"latest_rating":"评级"}},"fund_flow_analysis":{{"block_trade":"大宗交易异动","major_shareholder":"股东增减持趋势","control_flow":"控制权相关资金动向"}},"risk_analysis":{{"overall_risk_level":"低/中/高","key_risk_factors":["公司历史沿革与历次控制权变更","控制权比例与市值匹配度","减持约束与锁定期安排","股权结构(实控人/一致行动人)","主营业务稳定性与剥离必要性","资产质量与注入可行性","掏空风险(资金占用/违规担保)","负债与对外担保","法律合规与诉讼仲裁","估值与控股权溢价分析:当前PE vs 行业PE,参考市值=行业PE×净利润","行业监管与审批风险","核心团队与劳资稳定性"],"fundamental_risk_view":"从12个维度进行全面尽职调查:历史沿革、控制权结构、业务质地、资产质量、负债水平、掏空风险等"}}}}"""
         return _call_ai(prompt)
 
     def generate_smart_analysis(self, symbol: str, stock_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """基于已有数据+AI知识库生成智能分析（用于smart_analysis字段）"""
-        result = self.generate_analysis_from_knowledge(symbol)
-        return result
-
-    # ---- 完整AI分析 ----
+        return self.generate_analysis_from_knowledge(symbol)
 
     def generate_analysis_from_knowledge(self, symbol: str) -> Optional[Dict[str, Any]]:
-        prompt_main = f"""当前日期：{_TODAY}
+        today = _today()
+        prompt_main = f"""当前日期：{today}
 你是一个专业的并购顾问，请对股票代码 {symbol} 进行控制权转让前的上市公司概况分析，返回JSON：
 {{"fundamental_analysis":"基本面概况(主营业务/行业地位/竞争优势)","technical_analysis":"二级走势(近期是否创新高/新低、股价是否偏离正常走势、成交量异动)","valuation_analysis":"估值分析(PE/PB历史分位数、与同行对比)","risk_warning":"风险提示","capital_analysis":"资金面分析","summary":"一句话总结","investment_advice":{{"score":5,"suggestion":"","target_price":"","stop_loss":"","position_advice":""}}}}"""
 
@@ -109,7 +102,7 @@ class _BaseAIDataSource(DataSource):
         if not result:
             return None
 
-        prompt_ext = f"""当前日期：{_TODAY}
+        prompt_ext = f"""当前日期：{today}
 请对股票 {symbol} 进行控制权转让专题风险分析。重点从以下维度分析：
 
 1. 历史沿革：该公司历史上是否曾发生过控制权转让？若多次转让需警惕公司被掏空的风险

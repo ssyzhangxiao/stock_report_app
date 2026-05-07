@@ -25,8 +25,16 @@ class MarketDataProvider:
     def __init__(self):
         self._tdx_client = None
         self._tdx_available: Optional[bool] = None
+        self._ak = None
         self._rate_limiter = RateLimiter(min_interval=0.3, max_per_minute=40)
         self._slow_limiter = RateLimiter(min_interval=1.0, max_per_minute=10)
+
+    @property
+    def _akshare(self):
+        if self._ak is None:
+            from ..akshare_source import AkShareDataSource
+            self._ak = AkShareDataSource()
+        return self._ak
 
     @property
     def tdx_client(self):
@@ -74,9 +82,8 @@ class MarketDataProvider:
     @retry_on_failure(max_retries=2, base_delay=0.5)
     def _get_valuation(self, symbol: str) -> Optional[Dict[str, Any]]:
         try:
-            import akshare as ak
             self._rate_limiter.wait()
-            df = ak.stock_zh_a_spot_em()
+            df = self._akshare.get_spot_em()
             if df is None or df.empty:
                 return None
             code_col = '代码' if '代码' in df.columns else 'code'
@@ -115,18 +122,9 @@ class MarketDataProvider:
     @retry_on_failure(max_retries=2, base_delay=1.0)
     def _get_akshare_kline(self, symbol: str, days: int = 120) -> Optional[pd.DataFrame]:
         try:
-            import akshare as ak
             self._slow_limiter.wait()
-            end = datetime.now().strftime("%Y%m%d")
-            start = (datetime.now() - timedelta(days=days + 30)).strftime("%Y%m%d")
-            df = ak.stock_zh_a_hist(symbol=symbol, period='daily',
-                                    start_date=start, end_date=end, adjust='qfq')
+            df = self._akshare.get_daily(symbol, years=max(1, days // 250))
             if df is not None and not df.empty:
-                df.rename(columns={
-                    '日期': 'date', '开盘': 'open', '收盘': 'close',
-                    '最高': 'high', '最低': 'low', '成交量': 'volume',
-                    '成交额': 'amount',
-                }, inplace=True, errors='ignore')
                 df['date'] = pd.to_datetime(df['date'])
                 df.sort_values('date', inplace=True)
                 df['date'] = df['date'].dt.strftime('%Y-%m-%d')
@@ -139,9 +137,8 @@ class MarketDataProvider:
     @retry_on_failure(max_retries=2, base_delay=0.5)
     def _get_market_index(self) -> Optional[Dict[str, Any]]:
         try:
-            import akshare as ak
             self._rate_limiter.wait()
-            df = ak.stock_zh_index_spot_em()
+            df = self._akshare.get_index_spot()
             if df is None or df.empty:
                 return None
             indices = {}
@@ -163,9 +160,8 @@ class MarketDataProvider:
     @retry_on_failure(max_retries=2, base_delay=0.5)
     def _get_market_breadth(self) -> Optional[Dict[str, Any]]:
         try:
-            import akshare as ak
             self._rate_limiter.wait()
-            df = ak.stock_zh_a_spot_em()
+            df = self._akshare.get_spot_em()
             if df is None or df.empty:
                 return None
             up_count = len(df[df['涨跌幅'] > 0]) if '涨跌幅' in df.columns else 0
@@ -189,10 +185,8 @@ class MarketDataProvider:
     @retry_on_failure(max_retries=2, base_delay=1.0)
     def _get_fund_flow(self, symbol: str) -> Optional[Dict[str, Any]]:
         try:
-            import akshare as ak
             self._slow_limiter.wait()
-            market = "sh" if is_sse(symbol) else "sz"
-            df = ak.stock_individual_fund_flow(stock=symbol, market=market)
+            df = self._akshare.get_fund_flow(symbol)
             if df is None or df.empty:
                 return None
             latest = df.iloc[0]
