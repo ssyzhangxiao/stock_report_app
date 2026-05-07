@@ -3,54 +3,10 @@
 
 # ==================== 分析模式定义 ====================
 analysis_modes:
-  quick-view:
-    name: "⚡ 快速概览"
-    description: "5分钟内获取核心指标"
-    icon: "⚡"
-    estimated_duration: 5
-    skills:
-      - pe-pb-valuation
-
-  deep-valuation:
-    name: "💎 深度估值分析"
-    description: "DCF + PE/PB 多维度估值"
-    icon: "💎"
-    estimated_duration: 25
-    skills:
-      - dcf-valuation
-      - pe-pb-valuation
-
-  risk-analysis:
-    name: "🛡️ 风险控制分析"
-    description: "全面风险评估"
-    icon: "🛡️"
-    estimated_duration: 16
-    skills:
-      - pledge-risk
-      - news-sentiment
-
-  technical-scan:
-    name: "🔍 技术面扫描"
-    description: "技术指标 + 行业对比"
-    icon: "🔍"
-    estimated_duration: 22
-    skills:
-      - technical-trend
-      - industry-analysis
-
-  fundamental-check:
-    name: "🏥 基本面体检"
-    description: "财务健康 + 资本运作"
-    icon: "🏥"
-    estimated_duration: 27
-    skills:
-      - financial-health
-      - capital-operation
-
-  full-report-mode:
-    name: "📑 完整分析报告"
-    description: "全方位深度分析"
-    icon: "📑"
+  full-analysis:
+    name: "📊 综合分析"
+    description: "包含所有分析组件的完整报告"
+    icon: "📊"
     estimated_duration: 120
     skills:
       - dcf-valuation

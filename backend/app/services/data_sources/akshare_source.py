@@ -1,5 +1,7 @@
 import pandas as pd
 import numpy as np
+import re
+import requests
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List, Callable
 import logging
@@ -141,6 +143,263 @@ class AkShareDataSource(DataSource):
         except Exception as e:
             logger.warning(f"[akshare] 获取 {symbol} 公司信息失败: {e}")
             return None
+
+    def _scrape_sina_company_info(self, symbol: str) -> Dict[str, str]:
+        """从新浪财经抓取详细公司信息"""
+        result = {}
+        try:
+            url = f"https://vip.stock.finance.sina.com.cn/corp/go.php/vCI_CorpInfo/stockid/{symbol}.phtml"
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+                "Accept": "text/html,application/xhtml+xml",
+                "Accept-Language": "zh-CN,zh;q=0.9",
+            }
+            r = requests.get(url, headers=headers, timeout=10)
+            if r.status_code != 200:
+                return result
+            html = r.text
+
+            field_patterns = [
+                ("main_business", r'主营业务：.*?<td[^>]*>(.*?)</td>'),
+                ("products", r'产品名称：.*?<td[^>]*>(.*?)</td>'),
+                ("controlling_shareholder", r'控股股东：.*?<td[^>]*>(.*?)</td>'),
+                ("actual_controller", r'实际控制人：.*?<td[^>]*>(.*?)</td>'),
+                ("final_controller", r'最终控制人：.*?<td[^>]*>(.*?)</td>'),
+                ("chairman", r'董事长：.*?<td[^>]*>(.*?)</td>'),
+                ("secretary", r'董.*?秘：.*?<td[^>]*>(.*?)</td>'),
+                ("legal_representative", r'法人代表：.*?<td[^>]*>(.*?)</td>'),
+                ("general_manager", r'总.*?经理：.*?<td[^>]*>(.*?)</td>'),
+                ("registered_capital", r'注册.*?(?:资本|资金)：.*?<td[^>]*>(.*?)</td>'),
+                ("employee_count", r'员工人数：.*?<td[^>]*>(.*?)</td>'),
+                ("description", r'公司简介：.*?<td[^>]*>(.*?)</td>'),
+                ("english_name", r'英文名称：.*?<td[^>]*>(.*?)</td>'),
+                ("former_name", r'曾.*?名：.*?<td[^>]*>(.*?)</td>'),
+                ("region", r'所属地域：.*?<td[^>]*>(.*?)</td>'),
+                ("website", r'公司网址：.*?<td[^>]*>(.*?)</td>'),
+                ("business_scope", r'经营范围：.*?<td[^>]*>(.*?)</td>'),
+                ("listing_date", r'上市时间：.*?<td[^>]*>(.*?)</td>'),
+            ]
+
+            for key, pattern in field_patterns:
+                m = re.findall(pattern, html, re.DOTALL)
+                if m:
+                    val = re.sub(r'<[^>]+>', '', m[0]).strip()
+                    val = re.sub(r'\s+', ' ', val)
+                    if val and val != '--':
+                        result[key] = val
+
+            if result:
+                logger.info(f"[新浪抓取] {symbol} 获取到 {len(result)} 个字段")
+        except Exception as e:
+            logger.warning(f"[新浪抓取] {symbol} 失败: {e}")
+        return result
+
+    def _fetch_eastmoney_company_profile(self, symbol: str) -> Dict[str, Any]:
+        """从东方财富API获取详细公司资料"""
+        result = {}
+        try:
+            market = "SH" if is_sse(symbol) else "SZ"
+            url = f"https://emweb.securities.eastmoney.com/PC_HSF10/CompanySurvey/CompanySurveyAjax?code={market}{symbol}"
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+                "Referer": "https://emweb.securities.eastmoney.com/",
+            }
+            r = requests.get(url, headers=headers, timeout=10)
+            if r.status_code != 200:
+                return result
+            data = r.json()
+            jbzl = data.get("jbzl", {})
+            fxxg = data.get("fxxg", {})
+
+            if jbzl:
+                result = {
+                    "name": jbzl.get("gsmc", ""),
+                    "short_name": jbzl.get("agjc", ""),
+                    "english_name": jbzl.get("ywmc", ""),
+                    "industry": jbzl.get("sshy", ""),
+                    "industry_detail": jbzl.get("sszjhhy", ""),
+                    "former_name": jbzl.get("cym", ""),
+                    "region": jbzl.get("qy", ""),
+                    "listing_market": jbzl.get("ssjys", ""),
+                    "chairman": jbzl.get("dsz", ""),
+                    "legal_representative": jbzl.get("frdb", ""),
+                    "general_manager": jbzl.get("zjl", ""),
+                    "secretary": jbzl.get("dm", ""),
+                    "registered_capital": jbzl.get("zczb", ""),
+                    "employee_count": jbzl.get("gyrs", ""),
+                    "description": jbzl.get("gsjj", ""),
+                    "main_business": jbzl.get("jyfw", ""),
+                    "business_scope": jbzl.get("jyfw", ""),
+                    "website": jbzl.get("gswz", ""),
+                    "address": jbzl.get("bgdz", ""),
+                    "registered_address": jbzl.get("zcdz", ""),
+                    "phone": jbzl.get("lxdh", ""),
+                    "email": jbzl.get("dzxx", ""),
+                    "fax": jbzl.get("cz", ""),
+                    "zip_code": jbzl.get("yzbm", ""),
+                    "数据来源": "东方财富",
+                }
+            if fxxg:
+                result["listing_date"] = fxxg.get("ssrq", "")
+                result["establishment_date"] = fxxg.get("clrq", "")
+                result["issue_price"] = fxxg.get("mgfxj", "")
+
+            if result:
+                logger.info(f"[东方财富] {symbol} 获取到 {len(result)} 个字段")
+        except Exception as e:
+            logger.warning(f"[东方财富] {symbol} 公司资料获取失败: {e}")
+        return result
+
+    def _fetch_eastmoney_shareholder_info(self, symbol: str) -> Dict[str, Any]:
+        """从东方财富API获取股东信息（控股股东、实际控制人等）"""
+        result = {}
+        try:
+            market = "SH" if is_sse(symbol) else "SZ"
+            url = f"https://emweb.securities.eastmoney.com/PC_HSF10/ShareholderResearch/PageAjax?code={market}{symbol}&type=sdltgd"
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+                "Referer": "https://emweb.securities.eastmoney.com/",
+            }
+            r = requests.get(url, headers=headers, timeout=10)
+            if r.status_code != 200:
+                return result
+            data = r.json()
+
+            sjkzr = data.get("sjkzr", [])
+            if sjkzr and len(sjkzr) > 0:
+                result["actual_controller"] = sjkzr[0].get("HOLDER_NAME", "")
+                result["final_controller"] = sjkzr[0].get("HOLDER_NAME", "")
+
+            sdltgd = data.get("sdltgd", [])
+            if sdltgd and len(sdltgd) > 0:
+                top = sdltgd[0]
+                name = top.get("HOLDER_NAME", "")
+                ratio = top.get("FREE_HOLDNUM_RATIO")
+                if name:
+                    if ratio is not None:
+                        result["controlling_shareholder"] = f"{name} (持有比例：{ratio:.2f}%)"
+                    else:
+                        result["controlling_shareholder"] = name
+
+            if result:
+                logger.info(f"[东方财富股东] {symbol} 获取到 {len(result)} 个字段")
+        except Exception as e:
+            logger.warning(f"[东方财富股东] {symbol} 股东信息获取失败: {e}")
+        return result
+
+    def _fetch_eastmoney_products(self, symbol: str) -> str:
+        """从东方财富API获取产品名称列表"""
+        try:
+            market = "SH" if is_sse(symbol) else "SZ"
+            url = f"https://emweb.securities.eastmoney.com/PC_HSF10/BusinessAnalysis/PageAjax?code={market}{symbol}&type=zysr"
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+                "Referer": "https://emweb.securities.eastmoney.com/",
+            }
+            r = requests.get(url, headers=headers, timeout=10)
+            if r.status_code != 200:
+                return ""
+            data = r.json()
+            zygcfx = data.get("zygcfx", [])
+            if not zygcfx:
+                return ""
+            latest_date = max(item.get("REPORT_DATE", "") for item in zygcfx)
+            products = []
+            seen = set()
+            skip_keywords = {"其他(补充)", "其他业务", "其他(其他)"}
+            for item in zygcfx:
+                if item.get("REPORT_DATE", "") != latest_date:
+                    continue
+                mainop_type = item.get("MAINOP_TYPE", "")
+                item_name = item.get("ITEM_NAME", "").strip()
+                if mainop_type == "2" and item_name and item_name not in seen and item_name not in skip_keywords:
+                    seen.add(item_name)
+                    products.append(item_name)
+            if products:
+                result = "、".join(products)
+                logger.info(f"[东方财富产品] {symbol}: {result}")
+                return result
+        except Exception as e:
+            logger.warning(f"[东方财富产品] {symbol} 产品获取失败: {e}")
+        return ""
+
+    def get_company_profile(self, symbol: str) -> Optional[Dict[str, Any]]:
+        """获取详细公司简介，映射为前端期望的字段格式"""
+        profile = {}
+
+        em_info = self._fetch_eastmoney_company_profile(symbol)
+        if em_info:
+            profile = em_info
+
+        shareholder_info = self._fetch_eastmoney_shareholder_info(symbol)
+        for key, val in shareholder_info.items():
+            if val and not profile.get(key):
+                profile[key] = val
+
+        if not profile.get("products"):
+            products = self._fetch_eastmoney_products(symbol)
+            if products:
+                profile["products"] = products
+
+        if not profile.get("name") or not profile.get("main_business"):
+            try:
+                result = _fetch(
+                    lambda: __import__("akshare").stock_individual_info_em(symbol=symbol)
+                )
+                if result is not None and not (hasattr(result, "empty") and result.empty):
+                    raw = dict(zip(result["item"], result["value"]))
+                    akshare_fields = {
+                        "name": raw.get("股票简称", "") or profile.get("name", ""),
+                        "region": profile.get("region", "") or raw.get("省份", "") or raw.get("所属地域", ""),
+                        "english_name": profile.get("english_name", "") or raw.get("英文名称", ""),
+                        "industry": profile.get("industry", "") or raw.get("行业", ""),
+                        "former_name": profile.get("former_name", "") or raw.get("曾用名", ""),
+                        "main_business": profile.get("main_business", "") or raw.get("主营业务", ""),
+                        "products": profile.get("products", "") or raw.get("产品名称", ""),
+                        "controlling_shareholder": profile.get("controlling_shareholder", "") or raw.get("控股股东", ""),
+                        "actual_controller": profile.get("actual_controller", "") or raw.get("实际控制人", ""),
+                        "final_controller": profile.get("final_controller", "") or raw.get("最终控制人", ""),
+                        "chairman": profile.get("chairman", "") or raw.get("董事长", ""),
+                        "secretary": profile.get("secretary", "") or raw.get("董事会秘书", ""),
+                        "legal_representative": profile.get("legal_representative", "") or raw.get("法人代表", ""),
+                        "general_manager": profile.get("general_manager", "") or raw.get("总经理", ""),
+                        "registered_capital": profile.get("registered_capital", "") or raw.get("注册资本", "") or raw.get("总股本", ""),
+                        "employee_count": profile.get("employee_count", "") or raw.get("员工人数", ""),
+                        "description": profile.get("description", "") or raw.get("公司简介", ""),
+                        "listing_date": profile.get("listing_date", "") or raw.get("上市时间", ""),
+                        "total_market_cap": profile.get("total_market_cap", "") or raw.get("总市值", ""),
+                        "circulating_market_cap": profile.get("circulating_market_cap", "") or raw.get("流通市值", ""),
+                        "total_shares": profile.get("total_shares", "") or raw.get("总股本", ""),
+                        "circulating_shares": profile.get("circulating_shares", "") or raw.get("流通股", ""),
+                        "website": profile.get("website", "") or raw.get("公司网址", ""),
+                        "business_scope": profile.get("business_scope", "") or raw.get("经营范围", ""),
+                    }
+                    for k, v in akshare_fields.items():
+                        if v and not profile.get(k):
+                            profile[k] = v
+                    if not profile.get("数据来源"):
+                        profile["数据来源"] = "akshare"
+            except Exception as e:
+                logger.warning(f"[akshare] 获取 {symbol} 公司基本信息失败: {e}")
+
+        sina_info = self._scrape_sina_company_info(symbol)
+        for key, val in sina_info.items():
+            if val and not profile.get(key):
+                profile[key] = val
+
+        if not profile:
+            profile = {**sina_info}
+            if profile:
+                profile["数据来源"] = "新浪财经"
+
+        for key in list(profile.keys()):
+            val = profile[key]
+            if isinstance(val, float) and (val != val):
+                profile[key] = ""
+
+        if profile:
+            logger.info(f"[公司简介] {symbol} 共 {len(profile)} 个字段")
+        return profile if profile else None
 
     def get_company_info_sina(self, symbol: str) -> Optional[Dict[str, Any]]:
         try:

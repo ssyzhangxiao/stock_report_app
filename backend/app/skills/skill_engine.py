@@ -88,7 +88,7 @@ class SkillEngine:
     使用方式:
         engine = SkillEngine(llm_service)
         engine.register_all()
-        result = engine.execute_mode("deep-valuation", symbol="600519", stock_data={...})
+        result = engine.execute_mode("full-analysis", symbol="600519", stock_data={...})
     """
 
     def __init__(self, llm_service=None):
@@ -279,50 +279,10 @@ class SkillEngine:
 
         # 注册分析模式
         self.register_mode(AnalysisMode(
-            id="quick-view",
-            name="快速概览",
-            description="5分钟内获取核心指标",
-            icon="⚡",
-            skills=["pe-pb-valuation"],
-            estimated_duration=5,
-        ))
-        self.register_mode(AnalysisMode(
-            id="deep-valuation",
-            name="深度估值分析",
-            description="DCF + PE/PB 多维度估值",
-            icon="💎",
-            skills=["dcf-valuation", "pe-pb-valuation"],
-            estimated_duration=25,
-        ))
-        self.register_mode(AnalysisMode(
-            id="risk-analysis",
-            name="风险控制分析",
-            description="全面风险评估",
-            icon="🛡️",
-            skills=["pledge-risk", "news-sentiment"],
-            estimated_duration=16,
-        ))
-        self.register_mode(AnalysisMode(
-            id="technical-scan",
-            name="技术面扫描",
-            description="技术指标 + 行业对比",
-            icon="🔍",
-            skills=["technical-trend", "industry-analysis"],
-            estimated_duration=22,
-        ))
-        self.register_mode(AnalysisMode(
-            id="fundamental-check",
-            name="基本面体检",
-            description="财务健康 + 资本运作",
-            icon="🏥",
-            skills=["financial-health", "capital-operation"],
-            estimated_duration=27,
-        ))
-        self.register_mode(AnalysisMode(
-            id="full-report-mode",
-            name="完整分析报告",
-            description="全方位深度分析",
-            icon="📑",
+            id="full-analysis",
+            name="综合分析",
+            description="包含所有分析组件的完整报告",
+            icon="📊",
             skills=[
                 "dcf-valuation", "pe-pb-valuation", "pledge-risk",
                 "technical-trend", "industry-analysis",

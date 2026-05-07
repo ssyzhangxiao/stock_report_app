@@ -10,7 +10,7 @@ import ThemeToggle from '../components/theme/ThemeToggle';
 import { useTheme } from '../contexts/ThemeContext';
 
 import { initSkills, skillExecutor, SkillExecutionResult } from '../skills';
-import { AnalysisModeSelector, ProgressTracker, ReportTemplateSelector } from '../components/analysis';
+import { ProgressTracker, ReportTemplateSelector } from '../components/analysis';
 import type { ReportTemplateType } from '../utils/reportTemplates';
 import { getAnalysisModeById } from '../utils/analysisModeTemplates';
 
@@ -63,7 +63,7 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [data, setData] = useState<StockAnalysisResponse | null>(null);
   const [smartAnalysisData, setSmartAnalysisData] = useState<SmartAnalysisResult | null>(null);
-  const [selectedMode, setSelectedMode] = useState<string>('quick-view');
+  const [selectedMode] = useState<string>('full-analysis');
   const [selectedTemplate, setSelectedTemplate] = useState<ReportTemplateType>('full');
   const [progressResults, setProgressResults] = useState<SkillExecutionResult[]>([]);
   const [showProgress, setShowProgress] = useState<boolean>(false);
@@ -223,12 +223,6 @@ const Dashboard: React.FC = () => {
 
       {/* Main Content */}
       <div style={styles.contentArea}>
-        {/* Analysis Mode Selector - 始终显示，让用户先选模式 */}
-        <AnalysisModeSelector
-          selectedMode={selectedMode}
-          onSelect={setSelectedMode}
-        />
-
         {/* Loading */}
         {loading && (
           <Card style={{ ...styles.dataCard, padding: 0 }}>

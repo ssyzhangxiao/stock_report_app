@@ -4,8 +4,9 @@
  * 新增组件只需在此文件添加注册即可，无需修改Dashboard
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { message } from 'antd';
+import ReactECharts from 'echarts-for-react';
 import { widgetRegistry } from './WidgetRegistry';
 import type { WidgetProps, WidgetMeta } from './types';
 
@@ -46,12 +47,7 @@ function registerAllWidgets(): void {
       },
       component: ({ data }) => {
         if (!data.history || data.history.length === 0) return null;
-        return (
-          <div style={{ position: 'relative' }}>
-            <div style={{ position: 'absolute', top: 8, right: 12, zIndex: 10, background: 'rgba(102, 126, 234, 0.9)', color: '#fff', fontSize: 10, padding: '2px 8px', borderRadius: 4 }}>⚡ 动态组件</div>
-            <KLineChart data={data.history} height={400} />
-          </div>
-        );
+        return <KLineChart data={data.history} height={400} />;
       },
     },
 
@@ -72,6 +68,7 @@ function registerAllWidgets(): void {
           valuation={data.valuation}
           currentPrice={data.latest_price ?? undefined}
           financialIndicators={data.deep_financial?.financial_indicators || []}
+          priceHistory={data.history || []}
           title="估值对比"
         />
       ),
@@ -619,22 +616,6 @@ function registerAllWidgets(): void {
             </div>
           );
         }
-        // 只保留年报数据（12-31）
-        const annualIndicators = finIndicators.filter((item: any) => {
-          const dateStr = String(item['日期'] || '');
-          return dateStr.includes('12-31');
-        });
-        // 过去三年的年报
-        const pastThreeYears = annualIndicators.slice(0, 3);
-        // 最新一期（可能是季报或年报）
-        const latest = finIndicators[0];
-        // 检查最新一期是否已经在年报列表中
-        const latestDate = String(latest['日期'] || '');
-        const isLatestInAnnual = pastThreeYears.some(item => String(item['日期']) === latestDate);
-        // 组合数据：过去三年年报 + 最新一期（如果不在年报中）
-        const useIndicators = isLatestInAnnual
-          ? pastThreeYears
-          : [latest, ...pastThreeYears];
 
         const getValue = (item: any, key: string) => {
           const v = item[key];
@@ -645,101 +626,231 @@ function registerAllWidgets(): void {
           if (Math.abs(num) >= 1e4) return (num / 1e4).toFixed(1) + '万';
           return num.toFixed(1);
         };
-        const getDisplayDate = (item: any) => {
+
+        const annualIndicators = finIndicators.filter((item: any) => {
           const dateStr = String(item['日期'] || '');
-          if (dateStr.includes('12-31')) {
-            return dateStr.slice(0, 4); // 只显示年份
-          }
-          return dateStr; // 显示完整日期
-        };
+          return dateStr.includes('12-31');
+        });
 
-        const displayData = useIndicators.slice(0, 5).reverse();
-        const dates = displayData.map(getDisplayDate);
-        const revValues = displayData.map(item => getValue(item, '营业总收入(元)'));
-        const profValues = displayData.map(item => getValue(item, '净利润(元)'));
-        const roeValues = displayData.map(item => getValue(item, '净资产收益率(%)'));
+        const pastThreeYears = annualIndicators.slice(0, 3);
+        const latest = finIndicators[finIndicators.length - 1];
+        const latestDate = String(latest['日期'] || '');
+        const isLatestInAnnual = pastThreeYears.some(item => String(item['日期']) === latestDate);
+        const useIndicators = isLatestInAnnual
+          ? pastThreeYears
+          : [latest, ...pastThreeYears];
 
-        const revMax = Math.max(...revValues.map(Math.abs), 1);
-        const profMax = Math.max(...profValues.map(Math.abs), 1);
+        const displayData = useIndicators.slice(0, 4).reverse();
+        const dates = displayData.map((item: any) => {
+          const dateStr = String(item['日期'] || '');
+          if (dateStr.includes('12-31')) return dateStr.slice(0, 4);
+          return dateStr.slice(0, 7);
+        });
+        const revValues = displayData.map((item: any) => getValue(item, '营业总收入(元)'));
+        const profValues = displayData.map((item: any) => getValue(item, '净利润(元)'));
+        const roeValues = displayData.map((item: any) => getValue(item, '净资产收益率(%)'));
 
-        // 最新数据用于ROE拆解
         const latestForDuPont = useIndicators[0];
         const netProfit = getValue(latestForDuPont, '净利润(元)');
         const totalRevenue = getValue(latestForDuPont, '营业总收入(元)');
         const totalAssets = getValue(latestForDuPont, '资产总额(元)');
         const totalEquity = getValue(latestForDuPont, '所有者权益合计(元)');
 
-        // 杜邦分析三要素
-        const netProfitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0; // 销售净利率
-        const assetTurnover = totalAssets > 0 ? totalRevenue / totalAssets : 0; // 总资产周转率
-        const equityMultiplier = totalEquity > 0 ? totalAssets / totalEquity : 0; // 权益乘数
+        const netProfitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
+        const assetTurnover = totalAssets > 0 ? totalRevenue / totalAssets : 0;
+        const equityMultiplier = totalEquity > 0 ? totalAssets / totalEquity : 0;
         const roe = netProfitMargin * assetTurnover * equityMultiplier;
+
+        const assetLiabilityRatio = getValue(latestForDuPont, '资产负债率');
+        const grossMargin = getValue(latestForDuPont, '销售毛利率(%)');
+
+        const riskScore = useMemo(() => {
+          let score = 50;
+          if (assetLiabilityRatio > 70) score -= 20;
+          else if (assetLiabilityRatio > 50) score -= 10;
+          else if (assetLiabilityRatio < 30) score += 10;
+          if (roeValues.length >= 2 && roeValues[roeValues.length - 1] < roeValues[roeValues.length - 2]) score -= 10;
+          if (netProfitMargin < 5) score -= 15;
+          else if (netProfitMargin > 20) score += 10;
+          return Math.max(0, Math.min(100, score));
+        }, [assetLiabilityRatio, roeValues, netProfitMargin]);
+
+        const getRiskLevel = (score: number) => {
+          if (score >= 70) return { label: '低风险', color: '#52c41a' };
+          if (score >= 40) return { label: '中等风险', color: '#faad14' };
+          return { label: '高风险', color: '#ff4d4f' };
+        };
+        const riskLevel = getRiskLevel(riskScore);
+
+        const chartOption = useMemo(() => ({
+          tooltip: {
+            trigger: 'axis',
+            axisPointer: { type: 'cross', crossStyle: { color: '#999' } },
+            formatter: (params: any) => {
+              let result = `${params[0].axisValue}<br/>`;
+              params.forEach((p: any) => {
+                if (p.seriesName === '营业总收入' || p.seriesName === '净利润') {
+                  result += `${p.marker}${p.seriesName}: ${formatNum(p.value)}<br/>`;
+                } else if (p.seriesName === 'ROE') {
+                  result += `${p.marker}ROE: ${p.value.toFixed(2)}%<br/>`;
+                }
+              });
+              return result;
+            },
+          },
+          legend: {
+            data: ['营业总收入', '净利润', 'ROE'],
+            bottom: 0,
+            icon: 'roundRect',
+            itemWidth: 10,
+            itemHeight: 8,
+            fontSize: 11,
+          },
+          grid: { left: '10%', right: '10%', top: '8%', bottom: '12%' },
+          xAxis: {
+            type: 'category',
+            data: dates,
+            axisLabel: { fontSize: 10 },
+          },
+          yAxis: [
+            {
+              type: 'value',
+              name: '金额',
+              position: 'left',
+              nameTextStyle: { fontSize: 10 },
+              axisLabel: {
+                fontSize: 10,
+                formatter: (v: number) => {
+                  if (Math.abs(v) >= 1e8) return (v / 1e8).toFixed(0) + '亿';
+                  if (Math.abs(v) >= 1e4) return (v / 1e4).toFixed(0) + '万';
+                  return v.toString();
+                },
+              },
+              splitLine: { lineStyle: { type: 'dashed' } },
+            },
+            {
+              type: 'value',
+              name: 'ROE(%)',
+              position: 'right',
+              nameTextStyle: { fontSize: 10 },
+              axisLabel: { fontSize: 10, formatter: '{value}%' },
+              splitLine: { show: false },
+            },
+          ],
+          series: [
+            {
+              name: '营业总收入',
+              type: 'bar',
+              data: revValues,
+              yAxisIndex: 0,
+              barWidth: '30%',
+              itemStyle: {
+                color: '#1890ff',
+                borderRadius: [4, 4, 0, 0],
+              },
+              label: {
+                show: true,
+                position: 'top',
+                fontSize: 9,
+                formatter: (p: any) => formatNum(p.value),
+                color: '#1890ff',
+              },
+            },
+            {
+              name: '净利润',
+              type: 'bar',
+              data: profValues,
+              yAxisIndex: 0,
+              barWidth: '30%',
+              itemStyle: {
+                color: '#52c41a',
+                borderRadius: [4, 4, 0, 0],
+              },
+              label: {
+                show: true,
+                position: 'top',
+                fontSize: 9,
+                formatter: (p: any) => formatNum(p.value),
+                color: '#52c41a',
+              },
+            },
+            {
+              name: 'ROE',
+              type: 'line',
+              data: roeValues,
+              yAxisIndex: 1,
+              smooth: true,
+              lineStyle: { width: 3, color: '#2f54eb' },
+              symbol: 'circle',
+              symbolSize: 10,
+              itemStyle: { color: '#2f54eb', borderColor: '#fff', borderWidth: 2 },
+              label: {
+                show: true,
+                position: 'top',
+                fontSize: 10,
+                formatter: '{c}%',
+                color: '#2f54eb',
+                fontWeight: 600,
+              },
+            },
+          ],
+        }), [dates, revValues, profValues, roeValues]);
 
         return (
           <div style={{ padding: '20px' }}>
             <h3 style={{ marginBottom: 16, fontSize: 16, fontWeight: 600 }}>📈 财务趋势分析</h3>
 
-            {/* 合并的财务趋势柱状图 */}
             <div style={{ padding: 16, background: 'var(--component-bg)', borderRadius: 8, border: '1px solid var(--border)', marginBottom: 16 }}>
               <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: 'var(--text-primary)' }}>财务趋势（过去三年+最新一期）</div>
-              <div style={{ display: 'flex', gap: 6, marginBottom: 8, justifyContent: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
-                  <div style={{ width: 12, height: 12, background: '#1890ff', borderRadius: 2 }} />
-                  <span style={{ color: 'var(--text-secondary)' }}>营业总收入</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
-                  <div style={{ width: 12, height: 12, background: '#52c41a', borderRadius: 2 }} />
-                  <span style={{ color: 'var(--text-secondary)' }}>净利润</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
-                  <div style={{ width: 12, height: 12, background: '#2f54eb', borderRadius: 2 }} />
-                  <span style={{ color: 'var(--text-secondary)' }}>ROE(%)</span>
+              <ReactECharts option={chartOption} style={{ height: 320 }} notMerge={true} />
+            </div>
+
+            <div style={{ padding: 16, background: 'var(--component-bg)', borderRadius: 8, border: '1px solid var(--border)', marginBottom: 16 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: 'var(--text-primary)' }}>📊 财务风险数轴</div>
+              <div style={{ position: 'relative', height: 40, marginBottom: 12 }}>
+                <div style={{
+                  position: 'absolute', left: 0, right: 0, top: '50%',
+                  height: 8, borderRadius: 4,
+                  background: 'linear-gradient(to right, #52c41a 0%, #faad14 50%, #ff4d4f 100%)',
+                  transform: 'translateY(-50%)',
+                }} />
+                <div style={{
+                  position: 'absolute', left: `${riskScore}%`, top: '50%',
+                  width: 16, height: 16, borderRadius: '50%',
+                  background: riskLevel.color, border: '3px solid #fff',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                  transform: 'translate(-50%, -50%)',
+                  zIndex: 2,
+                }} />
+                <div style={{
+                  position: 'absolute', left: `${riskScore}%`, top: -8,
+                  transform: 'translateX(-50%)',
+                  fontSize: 11, fontWeight: 700, color: riskLevel.color,
+                  whiteSpace: 'nowrap',
+                }}>
+                  {riskScore}分 · {riskLevel.label}
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-                {dates.map((date, i) => {
-                  const revHeight = Math.max(20, (Math.abs(revValues[i]) / revMax) * 60);
-                  const profHeight = Math.max(20, (Math.abs(profValues[i]) / profMax) * 60);
-                  const roeHeight = Math.max(20, Math.min(100, roeValues[i]));
-                  // 检查是否是最新一期（最后一个显示）
-                  const isLatest = i === dates.length - 1;
-                  return (
-                    <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, opacity: isLatest ? 1 : 0.85 }}>
-                      <div style={{ display: 'flex', gap: 2, alignItems: 'flex-end' }}>
-                        {/* 营业总收入 */}
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                          <div style={{ fontSize: 9, color: 'var(--text-secondary)' }}>{formatNum(revValues[i])}</div>
-                          <div style={{ width: isLatest ? 20 : 16, height: revHeight, background: '#1890ff', borderRadius: 2, opacity: 0.9 }} />
-                        </div>
-                        {/* 净利润 */}
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                          <div style={{ fontSize: 9, color: 'var(--text-secondary)' }}>{formatNum(profValues[i])}</div>
-                          <div style={{ width: isLatest ? 20 : 16, height: profHeight, background: '#52c41a', borderRadius: 2, opacity: 0.9 }} />
-                        </div>
-                        {/* ROE */}
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                          <div style={{ fontSize: 9, color: 'var(--text-secondary)' }}>{roeValues[i].toFixed(1)}</div>
-                          <div style={{ width: isLatest ? 20 : 16, height: roeHeight, background: '#2f54eb', borderRadius: 2, opacity: 0.9 }} />
-                        </div>
-                      </div>
-                      <div style={{ fontSize: 10, color: isLatest ? '#1890ff' : 'var(--text-secondary)', marginTop: 4, fontWeight: isLatest ? 600 : 400 }}>{date}</div>
-                    </div>
-                  );
-                })}
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-secondary)' }}>
+                <span style={{ color: '#52c41a' }}>低风险(0-30)</span>
+                <span style={{ color: '#faad14' }}>中等风险(30-70)</span>
+                <span style={{ color: '#ff4d4f' }}>高风险(70-100)</span>
+              </div>
+              <div style={{ marginTop: 12, display: 'flex', gap: 16, fontSize: 11, color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
+                <div>资产负债率: <span style={{ fontWeight: 600, color: assetLiabilityRatio > 60 ? '#ff4d4f' : '#52c41a' }}>{assetLiabilityRatio.toFixed(1)}%</span></div>
+                <div>销售毛利率: <span style={{ fontWeight: 600, color: grossMargin > 30 ? '#52c41a' : '#faad14' }}>{grossMargin.toFixed(1)}%</span></div>
+                <div>净利率: <span style={{ fontWeight: 600, color: netProfitMargin > 15 ? '#52c41a' : '#faad14' }}>{netProfitMargin.toFixed(1)}%</span></div>
               </div>
             </div>
 
-            {/* ROE拆解（杜邦分析） */}
             <div style={{ padding: 16, background: 'var(--component-bg)', borderRadius: 8, border: '1px solid var(--border)' }}>
               <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: 'var(--text-primary)' }}>ROE拆解（杜邦分析）</div>
 
-              {/* ROE总览 */}
               <div style={{ textAlign: 'center', marginBottom: 16, padding: 12, background: 'rgba(47, 84, 235, 0.05)', borderRadius: 8 }}>
                 <div style={{ fontSize: 24, fontWeight: 700, color: '#2f54eb' }}>{roe.toFixed(1)}%</div>
                 <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>净资产收益率(ROE)</div>
               </div>
 
-              {/* 杜邦三要素 */}
               <div style={{ display: 'flex', gap: 12 }}>
                 <div style={{ flex: 1, padding: 12, background: 'rgba(24, 144, 255, 0.05)', borderRadius: 8, textAlign: 'center' }}>
                   <div style={{ fontSize: 18, fontWeight: 700, color: '#1890ff', marginBottom: 4 }}>{netProfitMargin.toFixed(1)}%</div>
@@ -760,7 +871,6 @@ function registerAllWidgets(): void {
                 </div>
               </div>
 
-              {/* 基础数据 */}
               <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
                 <div style={{ display: 'flex', gap: 16, fontSize: 11, color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
                   <div>营收: {formatNum(totalRevenue)}</div>

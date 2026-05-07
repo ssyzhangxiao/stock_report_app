@@ -52,6 +52,9 @@ class EastMoneyDataSource(DataSource):
     def get_company_info(self, symbol: str) -> Optional[Dict[str, Any]]:
         return self._akshare.get_company_info(symbol)
 
+    def get_company_profile(self, symbol: str) -> Optional[Dict[str, Any]]:
+        return self._akshare.get_company_profile(symbol)
+
     def get_financial_indicators(self, symbol: str) -> Optional[pd.DataFrame]:
         return self._akshare.get_financial_indicators(symbol)
 

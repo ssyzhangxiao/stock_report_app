@@ -170,6 +170,9 @@ export interface ValuationData {
   pe_ratio?: number;
   pb_ratio?: number;
   market_cap?: string;
+  market_cap_value?: number;
+  circulating_market_cap?: string;
+  circulating_market_cap_value?: number;
   industry_pe?: number;
   [key: string]: unknown;
 }

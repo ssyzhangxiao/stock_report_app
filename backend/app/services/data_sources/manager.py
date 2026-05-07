@@ -99,12 +99,12 @@ class DataSourceManager:
     def _fill_advanced_data(self, result: Dict[str, Any], symbol: str, em: DataSource) -> Dict[str, Any]:
         logger.info(f"[Auto] 并发补全高级数据")
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
             em_futures = {}
 
             ci = result.get("company_info") or {}
-            if not ci.get("总市值"):
-                em_futures[pool.submit(lambda s=symbol: em.get_company_info(s))] = "company_info"
+            if not ci.get("总市值") or not ci.get("name"):
+                em_futures[pool.submit(lambda s=symbol: em.get_company_profile(s))] = "company_info"
             ri = result.get("risk_indicators", {})
             for key, fn in [("pledge_ratio", em.get_pledge_ratio), ("cyq", lambda s=symbol: em.get_cyq(s)),
                             ("insider_holdings", em.get_insider_holdings), ("margin_balance", em.get_margin_balance)]:
@@ -117,12 +117,20 @@ class DataSourceManager:
             if not result.get("analyst_consensus") or not result["analyst_consensus"].get("latest_rating"):
                 em_futures[pool.submit(lambda s=symbol: em.get_analyst_rating(s))] = "analyst"
 
+            deep = result.get("deep_financial", {})
+            if not deep.get("cashflow"):
+                em_futures[pool.submit(lambda s=symbol: em.get_cashflow(s))] = "cashflow"
+            if not deep.get("balance_sheet"):
+                em_futures[pool.submit(lambda s=symbol: em.get_balance_sheet(s))] = "balance_sheet"
+            if not deep.get("income_statement"):
+                em_futures[pool.submit(lambda s=symbol: em.get_income_statement(s))] = "income_statement"
+
             mh_future = pool.submit(em.get_margin_history, symbol)
 
-            for future in concurrent.futures.as_completed(em_futures, timeout=15 + 5):
+            for future in concurrent.futures.as_completed(em_futures, timeout=20 + 5):
                 key = em_futures[future]
                 try:
-                    data = future.result(timeout=3)
+                    data = future.result(timeout=5)
                     self._apply_fill(result, symbol, key, data)
                 except Exception:
                     pass
@@ -151,8 +159,12 @@ class DataSourceManager:
             return
         if key == "company_info" and isinstance(data, dict):
             ci = result.get("company_info") or {}
-            merge_keys = ('总市值', '流通市值', '市盈率-动态', '市净率')
-            result["company_info"] = {**ci, **{k: v for k, v in data.items() if k in merge_keys and v is not None}}
+            if "name" in data:
+                result["company_info"] = {**ci, **{k: v for k, v in data.items() if v is not None and v != ""}}
+                logger.info(f"  [补全] 公司简介详细数据")
+            else:
+                merge_keys = ('总市值', '流通市值', '市盈率-动态', '市净率')
+                result["company_info"] = {**ci, **{k: v for k, v in data.items() if k in merge_keys and v is not None}}
             val = result.get("valuation", {})
             val['market_cap'] = data.get('总市值', val.get('market_cap'))
             val['circulating_market_cap'] = data.get('流通市值', val.get('circulating_market_cap'))
@@ -163,6 +175,14 @@ class DataSourceManager:
             if isinstance(data, pd.DataFrame) and not data.empty:
                 result["risk_indicators"][key] = data.to_dict(orient='records')
                 logger.info(f"  [补全] risk_indicators.{key}")
+        elif key in ("cashflow", "balance_sheet", "income_statement"):
+            if isinstance(data, pd.DataFrame) and not data.empty:
+                deep = result.get("deep_financial") or {}
+                deep[key] = data.head(5).to_dict(orient='records')
+                result["deep_financial"] = deep
+                logger.info(f"  [补全] deep_financial.{key} {len(deep[key])} 条")
+                if key == "balance_sheet":
+                    DataSourceManager._merge_balance_to_indicators(result)
         elif key == "fund_flow":
             if isinstance(data, pd.DataFrame) and not data.empty:
                 result["fund_flow"] = data.head(10).to_dict(orient='records')
@@ -303,10 +323,10 @@ class DataSourceManager:
             "technical": technical,
             "valuation": valuation,
             "deep_financial": {
-                "financial_indicators": financial.tail(5).to_dict(orient='records') if not financial.empty else [],
-                "balance_sheet": balance.head(3).to_dict(orient='records') if not balance.empty else [],
-                "cashflow": cashflow.head(3).to_dict(orient='records') if not cashflow.empty else [],
-                "income_statement": income_statement.head(3).to_dict(orient='records') if not income_statement.empty else [],
+                "financial_indicators": DataSourceManager._select_financial_indicators(financial),
+                "balance_sheet": balance.head(5).to_dict(orient='records') if not balance.empty else [],
+                "cashflow": cashflow.head(5).to_dict(orient='records') if not cashflow.empty else [],
+                "income_statement": income_statement.head(5).to_dict(orient='records') if not income_statement.empty else [],
             },
             "news_analysis": news_classified,
             "analyst_consensus": analyst if isinstance(analyst, dict) else {},
@@ -322,8 +342,86 @@ class DataSourceManager:
             "smart_analysis": self._default_smart_analysis(company_info, technical, valuation),
         }
 
+        self._merge_balance_to_indicators(result)
+
         result = self._clean_nan(result)
         return result
+
+    @staticmethod
+    def _normalize_date(date_str: str) -> str:
+        """将各种日期格式统一为 YYYY-MM-DD"""
+        if not date_str:
+            return ""
+        date_str = str(date_str).strip()
+        if len(date_str) == 8 and date_str.isdigit():
+            return f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:8]}"
+        if '-' in date_str:
+            return date_str
+        return date_str
+
+    @staticmethod
+    def _select_financial_indicators(financial: pd.DataFrame) -> list:
+        """选取财务指标：最近3个年报 + 最新一期（如不在年报中）"""
+        if financial is None or financial.empty:
+            return []
+        df = financial.copy()
+        date_col = None
+        for col in ['日期', '报告期', 'report_date']:
+            if col in df.columns:
+                date_col = col
+                break
+        if date_col is None:
+            return df.tail(20).to_dict(orient='records')
+
+        df[date_col] = df[date_col].astype(str)
+        annual = df[df[date_col].str.contains('12-31')]
+        annual_sorted = annual.sort_values(date_col, ascending=False)
+        selected_annual = annual_sorted.head(3)
+
+        latest = df.sort_values(date_col, ascending=False).iloc[0]
+        latest_date = str(latest[date_col])
+        already_included = any(
+            str(row[date_col]) == latest_date
+            for _, row in selected_annual.iterrows()
+        )
+
+        if already_included:
+            result = selected_annual.sort_values(date_col, ascending=True)
+        else:
+            result_list = [latest] + [row for _, row in selected_annual.iterrows()]
+            result = pd.DataFrame(result_list).sort_values(date_col, ascending=True)
+
+        return result.to_dict(orient='records')
+
+    @staticmethod
+    def _merge_balance_to_indicators(result: Dict[str, Any]):
+        """将资产负债表中的资产总额和所有者权益合并到财务指标中，供杜邦分析使用"""
+        deep = result.get("deep_financial", {})
+        indicators = deep.get("financial_indicators", [])
+        balance_sheet = deep.get("balance_sheet", [])
+        if not indicators or not balance_sheet:
+            return
+        bal_by_date = {}
+        for row in balance_sheet:
+            date_key = DataSourceManager._normalize_date(
+                str(row.get("报告期") or row.get("日期") or row.get("report_date") or "")
+            )
+            if date_key:
+                bal_by_date[date_key] = row
+        for ind in indicators:
+            date_key = DataSourceManager._normalize_date(
+                str(ind.get("报告期") or ind.get("日期") or "")
+            )
+            bal = bal_by_date.get(date_key)
+            if bal:
+                for field in ["资产总额(元)", "资产总计(元)", "总资产(元)", "total_assets"]:
+                    if field in bal and bal[field] is not None:
+                        ind["资产总额(元)"] = bal[field]
+                        break
+                for field in ["所有者权益合计(元)", "股东权益合计(元)", "净资产(元)", "total_holders_equity"]:
+                    if field in bal and bal[field] is not None:
+                        ind["所有者权益合计(元)"] = bal[field]
+                        break
 
     def _recalc_valuation(self, result: Dict[str, Any], symbol: str) -> Dict[str, Any]:
         sina = self._sources.get("sina")
@@ -347,7 +445,9 @@ class DataSourceManager:
         if shares and price > 0:
             mcap = price * shares
             val["market_cap"] = DataSourceManager._fmt_market_cap(mcap)
+            val["market_cap_value"] = mcap
             val["circulating_market_cap"] = DataSourceManager._fmt_market_cap(mcap)
+            val["circulating_market_cap_value"] = mcap
         if price and annual_eps:
             val["pe_ratio"] = round(price / annual_eps, 2)
         if price:

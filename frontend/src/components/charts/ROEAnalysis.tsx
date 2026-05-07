@@ -10,6 +10,8 @@ interface FinancialIndicator {
   '资产负债率'?: number;
   '销售毛利率(%)'?: number;
   '报告期'?: string;
+  '资产总额(元)'?: number;
+  '所有者权益合计(元)'?: number;
   [key: string]: any;
 }
 
@@ -17,6 +19,12 @@ interface ROEAnalysisProps {
   title?: string;
   financialIndicators?: FinancialIndicator[];
 }
+
+const formatNum = (num: number) => {
+  if (Math.abs(num) >= 1e8) return (num / 1e8).toFixed(1) + '亿';
+  if (Math.abs(num) >= 1e4) return (num / 1e4).toFixed(1) + '万';
+  return num.toFixed(1);
+};
 
 const ROEAnalysis: React.FC<ROEAnalysisProps> = ({
   title = '📈 净资产收益率(ROE)分析',
@@ -33,7 +41,6 @@ const ROEAnalysis: React.FC<ROEAnalysisProps> = ({
     );
   }
 
-  // 提取ROE数据，按时间排序
   const roeData = financialIndicators
     .map(item => ({
       period: item['报告期'] || '-',
@@ -42,7 +49,7 @@ const ROEAnalysis: React.FC<ROEAnalysisProps> = ({
       netProfit: item['净利润(元)'],
     }))
     .filter(item => item.roe != null)
-    .reverse(); // 从旧到新
+    .reverse();
 
   const latestROE = roeData.length > 0 ? roeData[roeData.length - 1].roe : null;
   const previousROE = roeData.length > 1 ? roeData[roeData.length - 2].roe : null;
@@ -57,6 +64,19 @@ const ROEAnalysis: React.FC<ROEAnalysisProps> = ({
 
   const roeStatus = getROEStatus(latestROE);
   const prevRoeStatus = getROEStatus(previousROE);
+
+  const latestIndicator = financialIndicators.length > 0 ? financialIndicators[0] : null;
+  const netProfit = latestIndicator ? Number(latestIndicator['净利润(元)'] || 0) : 0;
+  const totalRevenue = latestIndicator ? Number(latestIndicator['营业总收入(元)'] || 0) : 0;
+  const totalAssets = latestIndicator ? Number(latestIndicator['资产总额(元)'] || 0) : 0;
+  const totalEquity = latestIndicator ? Number(latestIndicator['所有者权益合计(元)'] || 0) : 0;
+
+  const netProfitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
+  const assetTurnover = totalAssets > 0 ? totalRevenue / totalAssets : 0;
+  const equityMultiplier = totalEquity > 0 ? totalAssets / totalEquity : 0;
+  const dupontROE = netProfitMargin * assetTurnover * equityMultiplier;
+
+  const hasDuPontData = totalRevenue > 0 && totalAssets > 0 && totalEquity > 0;
 
   const trendChartOption = {
     tooltip: {
@@ -241,6 +261,44 @@ const ROEAnalysis: React.FC<ROEAnalysisProps> = ({
           notMerge={true}
         />
       </Card>
+
+      {hasDuPontData && (
+        <Card size="small" title="ROE拆解（杜邦分析）" style={{ marginBottom: 16 }}>
+          <div style={{ textAlign: 'center', marginBottom: 16, padding: 12, background: 'rgba(47, 84, 235, 0.05)', borderRadius: 8 }}>
+            <div style={{ fontSize: 24, fontWeight: 700, color: '#2f54eb' }}>{dupontROE.toFixed(1)}%</div>
+            <div style={{ fontSize: 11, color: '#8c8c8c', marginTop: 4 }}>净资产收益率(ROE) = 销售净利率 × 总资产周转率 × 权益乘数</div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 120px', minWidth: 100, padding: 12, background: 'rgba(24, 144, 255, 0.05)', borderRadius: 8, textAlign: 'center' }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: '#1890ff', marginBottom: 4 }}>{netProfitMargin.toFixed(1)}%</div>
+              <div style={{ fontSize: 11, color: '#8c8c8c' }}>销售净利率</div>
+              <div style={{ fontSize: 10, color: '#8c8c8c', marginTop: 4 }}>净利润/营收</div>
+            </div>
+            <div style={{ color: '#8c8c8c', fontSize: 20, fontWeight: 700 }}>×</div>
+            <div style={{ flex: '1 1 120px', minWidth: 100, padding: 12, background: 'rgba(82, 196, 106, 0.05)', borderRadius: 8, textAlign: 'center' }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: '#52c41a', marginBottom: 4 }}>{assetTurnover.toFixed(2)}</div>
+              <div style={{ fontSize: 11, color: '#8c8c8c' }}>总资产周转率</div>
+              <div style={{ fontSize: 10, color: '#8c8c8c', marginTop: 4 }}>营收/总资产</div>
+            </div>
+            <div style={{ color: '#8c8c8c', fontSize: 20, fontWeight: 700 }}>×</div>
+            <div style={{ flex: '1 1 120px', minWidth: 100, padding: 12, background: 'rgba(250, 173, 20, 0.05)', borderRadius: 8, textAlign: 'center' }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: '#faad14', marginBottom: 4 }}>{equityMultiplier.toFixed(2)}</div>
+              <div style={{ fontSize: 11, color: '#8c8c8c' }}>权益乘数</div>
+              <div style={{ fontSize: 10, color: '#8c8c8c', marginTop: 4 }}>总资产/净资产</div>
+            </div>
+          </div>
+
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #f0f0f0' }}>
+            <div style={{ display: 'flex', gap: 16, fontSize: 11, color: '#8c8c8c', flexWrap: 'wrap', justifyContent: 'center' }}>
+              <div>营收: {formatNum(totalRevenue)}</div>
+              <div>净利润: {formatNum(netProfit)}</div>
+              <div>总资产: {formatNum(totalAssets)}</div>
+              <div>净资产: {formatNum(totalEquity)}</div>
+            </div>
+          </div>
+        </Card>
+      )}
 
       <Card size="small" title="历史数据">
         <Table

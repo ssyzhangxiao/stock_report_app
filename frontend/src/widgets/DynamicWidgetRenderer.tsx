@@ -90,10 +90,7 @@ const DynamicWidgetRenderer: React.FC<DynamicWidgetRendererProps> = ({
   return (
     <WidgetErrorBoundary widgetId={widgetId}>
       <Suspense fallback={<div style={{ textAlign: 'center', padding: 40 }}><Spin tip="加载组件..." /></div>}>
-        <div style={{ position: 'relative' }}>
-          <div style={{ position: 'absolute', top: 8, right: 12, zIndex: 1000, background: 'rgba(102, 126, 234, 0.95)', color: '#fff', fontSize: 10, padding: '3px 10px', borderRadius: 6, boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>⚡ 动态组件系统</div>
-          <WidgetComponent {...widgetProps} />
-        </div>
+        <WidgetComponent {...widgetProps} />
       </Suspense>
     </WidgetErrorBoundary>
   );
