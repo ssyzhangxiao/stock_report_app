@@ -13,6 +13,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .api import analysis
 from .api import openbb_apps
+from .api import research
 import uvicorn
 import os
 from dotenv import load_dotenv
@@ -41,6 +42,7 @@ app.add_middleware(
 app.include_router(analysis.router)
 app.include_router(openbb_apps.router)
 app.include_router(openbb_apps.root_router)
+app.include_router(research.router)
 
 
 @app.get("/")
