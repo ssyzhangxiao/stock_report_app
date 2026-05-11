@@ -127,6 +127,13 @@ class DataSourceManager:
                 em_futures[pool.submit(lambda s=symbol: em.get_fund_flow(s))] = (
                     "fund_flow"
                 )
+            # 添加北向资金季度持股数据（由于2024年8月19日后每日数据不再披露）
+            # 注意：这个方法在 AkShareDataSource 中，不在 EastMoneyDataSource 中
+            ak = self._sources.get("akshare")
+            if ak and not result.get("northbound_quarterly"):
+                em_futures[pool.submit(lambda s=symbol: ak.get_northbound_quarterly_holdings(s))] = (
+                    "northbound_quarterly"
+                )
             if not result.get("news_analysis"):
                 em_futures[pool.submit(lambda s=symbol: em.get_news(s))] = "news"
             if not result.get("analyst_consensus") or not result[
@@ -161,8 +168,8 @@ class DataSourceManager:
                 try:
                     data = future.result(timeout=5)
                     self._apply_fill(result, symbol, key, data)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"  [补全失败] {key}: {e}")
 
             try:
                 mh_data = mh_future.result(timeout=15)
@@ -243,6 +250,10 @@ class DataSourceManager:
             if isinstance(data, pd.DataFrame) and not data.empty:
                 result["fund_flow"] = data.head(10).to_dict(orient="records")
                 logger.info(f"  [补全] fund_flow")
+        elif key == "northbound_quarterly":
+            if isinstance(data, pd.DataFrame) and not data.empty:
+                result["northbound_quarterly"] = data.to_dict(orient="records")
+                logger.info(f"  [补全] northbound_quarterly {len(data)} 个季度")
         elif key == "news":
             if isinstance(data, pd.DataFrame) and not data.empty:
                 from ..news_analyzer import classify_news

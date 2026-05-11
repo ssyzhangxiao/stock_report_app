@@ -118,6 +118,36 @@ class AnnouncementsProvider:
             logger.warning(f"[公告] akshare公告失败: {e}")
             return None
 
+    def get_capital_operation(self, symbol: str) -> DataResult:
+        """获取资本运作数据（募集资金、投资项目、收购兼并等）"""
+        result = {
+            "fund_raising": [],
+            "project_investment": [],
+            "acquisition": [],
+            "equity_investment": [],
+            "equity_transfer": [],
+            "related_transactions": [],
+            "company_info": None,
+            "profit_forecast": [],
+        }
+        
+        try:
+            capital_data = self._akshare.get_capital_operation(symbol)
+            if capital_data:
+                result.update(capital_data)
+                return DataResult(
+                    success=True, data=result, source="akshare",
+                    status=SourceStatus.OK,
+                )
+        except Exception as e:
+            logger.warning(f"[资本运作] 获取失败: {e}")
+        
+        return DataResult(
+            success=False, data=result, source="akshare",
+            status=SourceStatus.UNAVAILABLE,
+            error="未能获取资本运作数据",
+        )
+
     def get_announcements(self, symbol: str) -> DataResult:
         result = {
             "symbol": symbol,

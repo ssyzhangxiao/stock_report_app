@@ -53,12 +53,14 @@ const FundFlowCard: React.FC<FundFlowCardProps> = ({ fundFlow }) => {
   }
 
   // 东财数据模式
-  const main = data['主力净流入'] || 0;
+  // 兼容多种字段名：主力净流入-净额 / 主力净流入 / net_inflow
+  const main = data['主力净流入-净额'] || data['主力净流入'] || data['net_inflow'] || 0;
+  const superLarge = data['超大单净流入-净额'] || data['超大单净流入'] || data['super_inflow'] || 0;
   return (
     <Card title="💰 资金流向" style={{ borderRadius: 8, marginBottom: 0 }} bodyStyle={{ padding: 8 }}>
       <Row gutter={12}>
         <Col span={12}><Text type="secondary" style={{ fontSize: 12 }}>主力净流入</Text><br /><Text strong style={{ color: main >= 0 ? '#cf1322' : '#3f8600', fontSize: 13 }}>{(main / 1e8).toFixed(2)}亿</Text></Col>
-        <Col span={12}><Text type="secondary" style={{ fontSize: 12 }}>超大单</Text><br /><Text style={{ fontSize: 13 }}>{(data['超大单净流入'] / 1e8 || 0).toFixed(2)}亿</Text></Col>
+        <Col span={12}><Text type="secondary" style={{ fontSize: 12 }}>超大单</Text><br /><Text style={{ fontSize: 13 }}>{(superLarge / 1e8 || 0).toFixed(2)}亿</Text></Col>
       </Row>
     </Card>
   );

@@ -558,6 +558,235 @@ def _init_default_sources(router: DataSourceRouter):
         ),
     )
 
+    # ========== 资本运作层 ==========
+    def akshare_capital_operation(symbol: str, **kwargs) -> Any:
+        """从 akshare 获取资本运作数据（募集资金、收购兼并等）"""
+        try:
+            import akshare as ak
+
+            result = {
+                "fund_raising": [],
+                "project_investment": [],
+                "acquisition": [],
+                "equity_investment": [],
+                "equity_transfer": [],
+                "related_transactions": [],
+                "company_info": None,
+                "profit_forecast": [],
+            }
+
+            # 获取一致预期数据
+            try:
+                df_forecast = ak.stock_profit_forecast_ths(symbol=symbol)
+                if df_forecast is not None and not df_forecast.empty:
+                    forecasts = []
+                    for _, row in df_forecast.iterrows():
+                        forecasts.append({
+                            "year": str(row.get("年度", "")),
+                            "avg_eps": float(row.get("均值", 0)) if row.get("均值") else None,
+                            "org_count": int(row.get("预测机构数", 0)) if row.get("预测机构数") else None,
+                            "min_eps": float(row.get("最小值", 0)) if row.get("最小值") else None,
+                            "max_eps": float(row.get("最大值", 0)) if row.get("最大值") else None,
+                            "industry_avg": float(row.get("行业平均数", 0)) if row.get("行业平均数") else None,
+                        })
+                    result["profit_forecast"] = forecasts
+            except Exception as e:
+                logger.debug(f"一致预期数据获取失败: {e}")
+
+            # 获取募集资金数据
+            try:
+                df_fund = ak.stock_em_mllist(symbol=symbol)
+                if df_fund is not None and not df_fund.empty:
+                    fund_raising = []
+                    for _, row in df_fund.iterrows():
+                        fund_raising.append({
+                            "announcement_date": str(row.get("公告日期", row.get("公告时间", ""))),
+                            "issue_type": str(row.get("发行类别", row.get("发行类型", ""))),
+                            "start_date": str(row.get("发行起始日期", row.get("发行日期", ""))),
+                            "net_raised": str(row.get("实际募集资金净额", row.get("募集资金净额", ""))),
+                            "remaining_end_date": str(row.get("剩余募集资金截止时间", row.get("截止日期", ""))),
+                            "remaining": str(row.get("剩余募集资金", "")),
+                            "utilization_rate": str(row.get("募集资金使用率", row.get("使用率", ""))),
+                        })
+                    result["fund_raising"] = fund_raising
+            except Exception as e:
+                logger.debug(f"募集资金数据获取失败: {e}")
+
+            # 获取收购兼并数据
+            try:
+                df_acq = ak.stock_cg_equity_mortgage_em(symbol=symbol)
+                if df_acq is not None and not df_acq.empty:
+                    acquisitions = []
+                    for _, row in df_acq.iterrows():
+                        acquisitions.append({
+                            "announcement_date": str(row.get("公告日期", "")),
+                            "transaction_amount": str(row.get("交易金额", "")),
+                            "progress": str(row.get("进度", "")),
+                            "target": str(row.get("标的", "")),
+                            "buyer": str(row.get("买方", "")),
+                            "seller": str(row.get("卖方", "")),
+                            "overview": str(row.get("概述", "")),
+                        })
+                    result["acquisition"] = acquisitions
+            except Exception as e:
+                logger.debug(f"收购兼并数据获取失败: {e}")
+
+            # 获取关联交易数据
+            try:
+                df_related = ak.stock_gszl_em(symbol=symbol)
+                if df_related is not None and not df_related.empty:
+                    related = []
+                    for _, row in df_related.iterrows():
+                        related.append({
+                            "announcement_date": str(row.get("公告日期", "")),
+                            "transaction_amount": str(row.get("交易金额", "")),
+                            "payment_method": str(row.get("支付方式", "")),
+                            "counterparty": str(row.get("关联方", "")),
+                            "transaction_type": str(row.get("交易类型", "")),
+                            "related_relation": str(row.get("关联关系", "")),
+                            "description": str(row.get("概述", "")),
+                        })
+                    result["related_transactions"] = related
+            except Exception as e:
+                logger.debug(f"关联交易数据获取失败: {e}")
+
+            # 获取公司基本信息
+            try:
+                df_company = ak.stock_profile_cninfo(symbol=symbol)
+                if df_company is not None and not df_company.empty:
+                    result["company_info"] = df_company.to_dict("records")
+            except Exception as e:
+                logger.debug(f"公司基本信息获取失败: {e}")
+
+            return result
+        except Exception as e:
+            logger.warning(f"[akshare_capital_operation] {symbol} failed: {e}")
+            return None
+
+    def eastmoney_capital_operation(symbol: str, **kwargs) -> Any:
+        """从东方财富获取资本运作数据"""
+        try:
+            import akshare as ak
+
+            result = {
+                "fund_raising": [],
+                "project_investment": [],
+                "acquisition": [],
+                "equity_investment": [],
+                "equity_transfer": [],
+                "related_transactions": [],
+                "company_info": None,
+                "profit_forecast": [],
+            }
+
+            # 获取募集资金数据
+            try:
+                df = ak.stock_em_mllist(symbol=symbol)
+                if df is not None and not df.empty:
+                    result["fund_raising"] = df.to_dict("records")
+            except Exception:
+                pass
+
+            # 获取收购兼并数据
+            try:
+                df = ak.stock_cg_equity_mortgage_em(symbol=symbol)
+                if df is not None and not df.empty:
+                    result["acquisition"] = df.to_dict("records")
+            except Exception:
+                pass
+
+            # 获取一致预期数据
+            try:
+                df = ak.stock_profit_forecast_ths(symbol=symbol)
+                if df is not None and not df.empty:
+                    result["profit_forecast"] = df.to_dict("records")
+            except Exception:
+                pass
+
+            return result
+        except Exception as e:
+            logger.warning(f"[eastmoney_capital_operation] {symbol} failed: {e}")
+            return None
+
+    def cninfo_capital_operation(symbol: str, **kwargs) -> Any:
+        """从巨潮资讯获取资本运作公告"""
+        try:
+            import akshare as ak
+
+            result = {
+                "fund_raising": [],
+                "project_investment": [],
+                "acquisition": [],
+                "equity_investment": [],
+                "equity_transfer": [],
+                "related_transactions": [],
+                "company_info": None,
+                "profit_forecast": [],
+            }
+
+            # 从公告中提取资本运作相关公告
+            try:
+                df = ak.stock_zh_a_disclosure_report_cninfo(symbol=symbol)
+                if df is not None and not df.empty:
+                    # 过滤资本运作相关公告
+                    keywords = ["募集", "增发", "配股", "收购", "兼并", "投资", "关联交易"]
+                    related_announcements = []
+                    for _, row in df.iterrows():
+                        title = str(row.get("公告标题", ""))
+                        if any(kw in title for kw in keywords):
+                            related_announcements.append({
+                                "announcement_date": str(row.get("公告日期", "")),
+                                "title": title,
+                                "type": "公告",
+                            })
+                    result["related_transactions"] = related_announcements
+            except Exception:
+                pass
+
+            return result
+        except Exception as e:
+            logger.warning(f"[cninfo_capital_operation] {symbol} failed: {e}")
+            return None
+
+    router.register_source(
+        "capital_operation",
+        "akshare",
+        akshare_capital_operation,
+        DataSourceConfig(
+            name="akshare",
+            priority=DataSourcePriority.PRIMARY,
+            timeout=15.0,
+            rate_limit_interval=1.0,
+            rate_limit_per_minute=10,
+        ),
+    )
+
+    router.register_source(
+        "capital_operation",
+        "eastmoney",
+        eastmoney_capital_operation,
+        DataSourceConfig(
+            name="eastmoney",
+            priority=DataSourcePriority.SECONDARY,
+            timeout=20.0,
+            rate_limit_interval=1.5,
+            rate_limit_per_minute=8,
+        ),
+    )
+
+    router.register_source(
+        "capital_operation",
+        "cninfo",
+        cninfo_capital_operation,
+        DataSourceConfig(
+            name="cninfo",
+            priority=DataSourcePriority.FALLBACK,
+            timeout=25.0,
+            rate_limit_interval=2.0,
+            rate_limit_per_minute=5,
+        ),
+    )
+
     logger.info(f"[路由] 初始化完成，共 {len(router.get_all_layers())} 层")
 
 
@@ -591,6 +820,13 @@ def get_announcement_data(
 ) -> SourceResult:
     """获取公告数据"""
     return get_router().route("announcements", data_key, symbol, **kwargs)
+
+
+def get_capital_operation_data(
+    symbol: str, data_key: str = "capital_operation", **kwargs
+) -> SourceResult:
+    """获取资本运作数据"""
+    return get_router().route("capital_operation", data_key, symbol, **kwargs)
 
 
 def get_router_status() -> Dict[str, Any]:

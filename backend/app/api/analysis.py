@@ -780,11 +780,11 @@ async def get_capital_operation(symbol: str):
     try:
         from starlette.concurrency import run_in_threadpool
         from ..services.data_sources.unified import (
-            get_capital_operation as fetch_capital,
+            router_get_capital_operation_data,
         )
 
         def _do_fetch():
-            result = fetch_capital(symbol)
+            result = router_get_capital_operation_data(symbol)
             if result.success and result.data:
                 return result.data
             return {

@@ -77,7 +77,7 @@ if [ ! -d "$VENV_DIR" ]; then
     info "正在创建虚拟环境..."
     python3 -m venv "$VENV_DIR"
     source "$VENV_DIR/bin/activate"
-    pip install -r "$BACKEND_DIR/requirements.txt"
+    pip install -r "$PROJECT_DIR/requirements.txt"
 else
     source "$VENV_DIR/bin/activate"
 fi

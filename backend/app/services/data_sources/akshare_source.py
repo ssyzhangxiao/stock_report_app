@@ -666,6 +666,66 @@ class AkShareDataSource(DataSource):
             logger.warning(f"[akshare] 获取 {symbol} 资金流向失败: {e}")
             return None
 
+    def get_northbound_quarterly_holdings(self, symbol: str) -> Optional[pd.DataFrame]:
+        """获取北向资金季度持股数据（最近5个季度）
+        
+        由于2024年8月19日起北向资金每日数据不再披露，此方法返回历史季度末的持股情况。
+        
+        Args:
+            symbol: 股票代码
+            
+        Returns:
+            DataFrame包含季度末的持股数据，或None
+        """
+        try:
+            import akshare as ak
+            import pandas as pd
+            from datetime import datetime
+
+            # 获取个股的北向资金持股历史
+            df = _fetch(lambda: ak.stock_hsgt_individual_em(symbol=symbol))
+            if df is None or df.empty:
+                return None
+
+            # 转换日期列
+            df['持股日期'] = pd.to_datetime(df['持股日期'])
+
+            # 提取季度末数据（3月31日、6月30日、9月30日、12月31日）
+            def get_quarter_end_date(date):
+                month = date.month
+                year = date.year
+                if month <= 3:
+                    return pd.Timestamp(year=year, month=3, day=31)
+                elif month <= 6:
+                    return pd.Timestamp(year=year, month=6, day=30)
+                elif month <= 9:
+                    return pd.Timestamp(year=year, month=9, day=30)
+                else:
+                    return pd.Timestamp(year=year, month=12, day=31)
+
+            df['quarter_end'] = df['持股日期'].apply(get_quarter_end_date)
+
+            # 按季度分组，取每个季度最后一条记录
+            quarterly_data = df.groupby('quarter_end').last().reset_index()
+            quarterly_data = quarterly_data.sort_values('quarter_end', ascending=False).head(5)
+
+            # 重命名列以便前端使用
+            quarterly_data.rename(columns={
+                'quarter_end': '日期',
+                '持股数量': '持股数量',
+                '持股市值': '持股市值',
+                '持股数量占A股百分比': '持股比例',
+                '今日增持股数': '季度增持数量',
+                '今日增持资金': '季度增持市值'
+            }, inplace=True)
+
+            logger.info(f"[北向资金] 获取 {symbol} 季度持股数据成功，共 {len(quarterly_data)} 个季度")
+            return quarterly_data
+
+        except Exception as e:
+            logger.warning(f"[akshare] 获取 {symbol} 北向资金季度持股失败: {e}")
+            return None
+
     def get_news(self, symbol: str) -> Optional[pd.DataFrame]:
         try:
             import akshare as ak
@@ -827,40 +887,115 @@ class AkShareDataSource(DataSource):
             import akshare as ak
 
             result = {
-                "dividend": None,
-                "buyback": None,
-                "insider_trading": None,
-                "pledge": None,
+                "fund_raising": [],
+                "project_investment": [],
+                "acquisition": [],
+                "equity_investment": [],
+                "equity_transfer": [],
+                "related_transactions": [],
+                "company_info": None,
+                "profit_forecast": [],
             }
+            
+            # 获取一致预期数据
             try:
-                df_dividend = _fetch(
-                    lambda: ak.stock_dividend_details_em(symbol=symbol)
+                df_forecast = _fetch(
+                    lambda: ak.stock_profit_forecast_ths(symbol=symbol)
                 )
-                if df_dividend is not None and not df_dividend.empty:
-                    result["dividend"] = df_dividend.to_dict("records")
+                if df_forecast is not None and not df_forecast.empty:
+                    result["profit_forecast"] = df_forecast.to_dict("records")
             except Exception:
                 pass
+            
+            # 获取募集资金数据 - 使用东方财富募集资金 API
             try:
-                df_insider = self.get_insider_holdings(symbol)
-                if df_insider is not None:
-                    result["insider_trading"] = (
-                        df_insider.to_dict("records")
-                        if hasattr(df_insider, "to_dict")
-                        else df_insider
+                # 尝试多个可能的 API
+                df_mllist = None
+                try:
+                    df_mllist = _fetch(
+                        lambda: ak.stock_em_mllist(symbol=symbol)
                     )
-            except Exception:
-                pass
+                except Exception:
+                    pass
+                
+                if df_mllist is None or df_mllist.empty:
+                    try:
+                        df_mllist = _fetch(
+                            lambda: ak.stock_margin_szse(symbol=symbol)
+                        )
+                    except Exception:
+                        pass
+                        
+                if df_mllist is not None and not df_mllist.empty:
+                    # 映射字段
+                    fund_raising = []
+                    for _, row in df_mllist.iterrows():
+                        fund_raising.append({
+                            "announcement_date": str(row.get("公告日期", row.get("公告时间", ""))),
+                            "issue_type": str(row.get("发行类别", row.get("发行类型", ""))),
+                            "start_date": str(row.get("发行起始日期", row.get("发行日期", ""))),
+                            "net_raised": str(row.get("实际募集资金净额", row.get("募集资金净额", ""))),
+                            "remaining_end_date": str(row.get("剩余募集资金截止时间", row.get("截止日期", ""))),
+                            "remaining": str(row.get("剩余募集资金", "")),
+                            "utilization_rate": str(row.get("募集资金使用率", row.get("使用率", ""))),
+                        })
+                    result["fund_raising"] = fund_raising
+            except Exception as e:
+                logger.debug(f"募集资金数据获取失败: {e}")
+            
+            # 获取收购兼并数据 - 使用并购重组 API
             try:
-                df_pledge = self.get_pledge_ratio(symbol)
-                if df_pledge is not None:
-                    result["pledge"] = (
-                        df_pledge.to_dict("records")
-                        if hasattr(df_pledge, "to_dict")
-                        else df_pledge
-                    )
+                df_cg = _fetch(
+                    lambda: ak.stock_cg_equity_mortgage_em(symbol=symbol)
+                )
+                if df_cg is not None and not df_cg.empty:
+                    acquisitions = []
+                    for _, row in df_cg.iterrows():
+                        acquisitions.append({
+                            "announcement_date": str(row.get("公告日期", "")),
+                            "transaction_amount": str(row.get("交易金额", "")),
+                            "progress": str(row.get("进度", "")),
+                            "target": str(row.get("标的", "")),
+                            "buyer": str(row.get("买方", "")),
+                            "seller": str(row.get("卖方", "")),
+                            "overview": str(row.get("概述", "")),
+                        })
+                    result["acquisition"] = acquisitions
+            except Exception as e:
+                logger.debug(f"收购兼并数据获取失败: {e}")
+            
+            # 获取关联交易数据 - 使用关联交易 API
+            try:
+                df_related = _fetch(
+                    lambda: ak.stock_gszl_em(symbol=symbol)
+                )
+                if df_related is not None and not df_related.empty:
+                    related = []
+                    for _, row in df_related.iterrows():
+                        related.append({
+                            "announcement_date": str(row.get("公告日期", "")),
+                            "transaction_amount": str(row.get("交易金额", "")),
+                            "payment_method": str(row.get("支付方式", "")),
+                            "counterparty": str(row.get("关联方", "")),
+                            "transaction_type": str(row.get("交易类型", "")),
+                            "related_relation": str(row.get("关联关系", "")),
+                            "description": str(row.get("概述", "")),
+                        })
+                    result["related_transactions"] = related
+            except Exception as e:
+                logger.debug(f"关联交易数据获取失败: {e}")
+            
+            # 获取公司基本信息
+            try:
+                df_company = _fetch(
+                    lambda: ak.stock_profile_cninfo(symbol=symbol)
+                )
+                if df_company is not None and not df_company.empty:
+                    result["company_info"] = df_company.to_dict("records")
             except Exception:
                 pass
-            return result if any(v is not None for v in result.values()) else None
+            
+            return result
         except Exception as e:
             logger.warning(f"[akshare] 获取 {symbol} 资本运作数据失败: {e}")
             return None

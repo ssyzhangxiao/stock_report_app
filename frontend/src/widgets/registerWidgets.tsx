@@ -437,7 +437,8 @@ function registerAllWidgets(): void {
         }
 
         const latestFlow = fundFlowData[0] || {};
-        const netInflowVal = latestFlow['主力净流入'] || latestFlow['net_inflow'];
+        // 兼容多种字段名：主力净流入-净额 / 主力净流入 / net_inflow
+        const netInflowVal = latestFlow['主力净流入-净额'] || latestFlow['主力净流入'] || latestFlow['net_inflow'];
         const netInflow = typeof netInflowVal === 'number' ? netInflowVal : 0;
         const isPositive = netInflow >= 0;
 
@@ -446,7 +447,7 @@ function registerAllWidgets(): void {
             <div style={{ fontSize: 36, marginBottom: 12 }}>{isPositive ? '📈' : '📉'}</div>
             <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>历史资金流向</div>
             <div style={{ color: isPositive ? '#52c41a' : '#ff4d4f', fontSize: 16 }}>
-              主力净流入: {isPositive ? '+' : ''}{netInflow.toFixed(2)} 万
+              主力净流入: {isPositive ? '+' : ''}{(netInflow / 10000).toFixed(2)} 万
             </div>
             <div style={{ marginTop: 12, color: '#8c8c8c', fontSize: 11 }}>
               近 {fundFlowData.length} 日资金流向
@@ -478,8 +479,10 @@ function registerAllWidgets(): void {
         }
 
         const latestFlow = fundFlowData[0] || {};
-        const superInflow = latestFlow['超大单净流入'] || latestFlow['super_inflow'] || 0;
-        const bigInflow = latestFlow['大单净流入'] || latestFlow['big_inflow'] || 0;
+        // 兼容多种字段名：超大单净流入-净额 / 超大单净流入 / super_inflow
+        const superInflow = latestFlow['超大单净流入-净额'] || latestFlow['超大单净流入'] || latestFlow['super_inflow'] || 0;
+        // 兼容多种字段名：大单净流入-净额 / 大单净流入 / big_inflow
+        const bigInflow = latestFlow['大单净流入-净额'] || latestFlow['大单净流入'] || latestFlow['big_inflow'] || 0;
         const mainNet = Number(superInflow) + Number(bigInflow);
 
         return (
@@ -489,20 +492,20 @@ function registerAllWidgets(): void {
               <div style={{ textAlign: 'center', padding: 8, background: '#f5f5f5', borderRadius: 4 }}>
                 <div style={{ fontSize: 11, color: '#999' }}>超大单净流入</div>
                 <div style={{ fontSize: 14, fontWeight: 600, color: Number(superInflow) >= 0 ? '#52c41a' : '#ff4d4f' }}>
-                  {Number(superInflow).toFixed(0)} 万
+                  {(Number(superInflow) / 10000).toFixed(0)} 万
                 </div>
               </div>
               <div style={{ textAlign: 'center', padding: 8, background: '#f5f5f5', borderRadius: 4 }}>
                 <div style={{ fontSize: 11, color: '#999' }}>大单净流入</div>
                 <div style={{ fontSize: 14, fontWeight: 600, color: Number(bigInflow) >= 0 ? '#52c41a' : '#ff4d4f' }}>
-                  {Number(bigInflow).toFixed(0)} 万
+                  {(Number(bigInflow) / 10000).toFixed(0)} 万
                 </div>
               </div>
             </div>
             <div style={{ marginTop: 8, textAlign: 'center', padding: 8, background: mainNet >= 0 ? '#f6ffed' : '#fff2f0', borderRadius: 4 }}>
               <div style={{ fontSize: 11, color: '#999' }}>主力合计</div>
               <div style={{ fontSize: 16, fontWeight: 600, color: mainNet >= 0 ? '#52c41a' : '#ff4d4f' }}>
-                {mainNet >= 0 ? '+' : ''}{mainNet.toFixed(0)} 万
+                {mainNet >= 0 ? '+' : ''}{(mainNet / 10000).toFixed(0)} 万
               </div>
             </div>
           </div>
@@ -1018,30 +1021,118 @@ function registerAllWidgets(): void {
       component: ({ data }: WidgetProps) => {
         // 使用类型断言避免错误，因为这些字段可能不在类型定义中
         const dataAsAny = data as any;
-        const northFlow = dataAsAny.northbound_flow || dataAsAny.north_flow || {};
-        const historyData = northFlow.history || northFlow.data || [];
-        const latestData = historyData[0] || {};
+        
+        // 优先使用新的季度持股数据
+        const quarterlyData = dataAsAny.northbound_quarterly || [];
+        
+        if (quarterlyData.length > 0) {
+          // 显示过去5个季度的持股变化图
+          const chartData = quarterlyData.map((item: any) => ({
+            date: item['日期'] || item.date,
+            shares: item['持股数量'] || item.shares || 0,
+            marketValue: item['持股市值'] || item.marketValue || 0,
+            ratio: item['持股比例'] || item.ratio || 0,
+          })).reverse(); // 反转以便从左到右显示时间顺序
 
-        const netInflowVal = latestData['北向资金净流入'] || latestData.net_inflow;
-        const netInflow = typeof netInflowVal === 'number' ? netInflowVal : 0;
-        const isPositive = netInflow >= 0;
+          return (
+            <div style={{ padding: '20px' }}>
+              <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 16, textAlign: 'center' }}>
+                🧭 北向资金季度持股变化（近5个季度）
+              </div>
+              <div style={{ color: '#8c8c8c', fontSize: 11, textAlign: 'center', marginBottom: 12 }}>
+                ⚠️ 自2024年8月19日起，北向资金每日详细数据已不再披露，当前显示季度末持股情况
+              </div>
+              
+              {/* 持股数量趋势 */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8 }}>持股数量（万股）</div>
+                <div style={{ display: 'flex', alignItems: 'flex-end', height: 120, gap: 8, padding: '0 10px' }}>
+                  {chartData.map((item: any, index: number) => {
+                    const maxShares = Math.max(...chartData.map((d: any) => d.shares));
+                    const height = maxShares > 0 ? (item.shares / maxShares) * 100 : 0;
+                    return (
+                      <div key={index} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                        <div style={{ fontSize: 10, color: '#595959', marginBottom: 4 }}>
+                          {(item.shares / 10000).toFixed(0)}
+                        </div>
+                        <div
+                          style={{
+                            width: '100%',
+                            height: `${height}%`,
+                            background: 'linear-gradient(to top, #1890ff, #40a9ff)',
+                            borderRadius: '4px 4px 0 0',
+                            minHeight: 4,
+                          }}
+                        />
+                        <div style={{ fontSize: 10, color: '#8c8c8c', marginTop: 4 }}>
+                          {item.date?.substring(5, 10) || ''}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
 
+              {/* 持股比例趋势 */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8 }}>持股比例（%）</div>
+                <div style={{ display: 'flex', alignItems: 'flex-end', height: 100, gap: 8, padding: '0 10px' }}>
+                  {chartData.map((item: any, index: number) => {
+                    const maxRatio = Math.max(...chartData.map((d: any) => d.ratio));
+                    const height = maxRatio > 0 ? (item.ratio / maxRatio) * 100 : 0;
+                    return (
+                      <div key={index} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                        <div style={{ fontSize: 10, color: '#595959', marginBottom: 4 }}>
+                          {item.ratio.toFixed(2)}%
+                        </div>
+                        <div
+                          style={{
+                            width: '100%',
+                            height: `${height}%`,
+                            background: 'linear-gradient(to top, #52c41a, #73d13d)',
+                            borderRadius: '4px 4px 0 0',
+                            minHeight: 4,
+                          }}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 最新季度详情 */}
+              {chartData.length > 0 && (
+                <div style={{ background: '#f5f5f5', padding: 12, borderRadius: 6, marginTop: 12 }}>
+                  <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 8 }}>最新季度（{chartData[chartData.length - 1]?.date?.substring(0, 7) || ''}）</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 11 }}>
+                    <div>
+                      <span style={{ color: '#8c8c8c' }}>持股数量：</span>
+                      <span style={{ fontWeight: 500 }}>{(chartData[chartData.length - 1]?.shares / 10000).toFixed(0)} 万股</span>
+                    </div>
+                    <div>
+                      <span style={{ color: '#8c8c8c' }}>持股市值：</span>
+                      <span style={{ fontWeight: 500 }}>{((chartData[chartData.length - 1]?.marketValue || 0) / 1e8).toFixed(2)} 亿</span>
+                    </div>
+                    <div>
+                      <span style={{ color: '#8c8c8c' }}>持股比例：</span>
+                      <span style={{ fontWeight: 500 }}>{chartData[chartData.length - 1]?.ratio.toFixed(2)}%</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        }
+
+        // 如果没有季度数据，显示提示信息
         return (
           <div style={{ padding: '20px', textAlign: 'center' }}>
             <div style={{ fontSize: 36, marginBottom: 12 }}>🧭</div>
             <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>北向资金</div>
-            {historyData.length > 0 ? (
-              <>
-                <div style={{ color: isPositive ? '#52c41a' : '#ff4d4f', fontSize: 16 }}>
-                  净流入: {isPositive ? '+' : ''}{netInflow.toFixed(2)} 亿
-                </div>
-                <div style={{ marginTop: 8, color: '#8c8c8c', fontSize: 11 }}>
-                  近 {historyData.length} 日北向资金
-                </div>
-              </>
-            ) : (
-              <div style={{ color: '#8c8c8c', fontSize: 12 }}>暂无数据</div>
-            )}
+            <div style={{ color: '#8c8c8c', fontSize: 12 }}>
+              自2024年8月19日起，北向资金每日详细数据已不再披露<br />
+              当前仅可获取季度持股数据及每日交易总额
+            </div>
           </div>
         );
       },

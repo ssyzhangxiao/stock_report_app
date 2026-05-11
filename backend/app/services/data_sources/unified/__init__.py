@@ -38,6 +38,7 @@ from .router import (
     get_news_data as router_get_news_data,
     get_financial_data as router_get_financial_data,
     get_announcement_data as router_get_announcement_data,
+    get_capital_operation_data as router_get_capital_operation_data,
 )
 
 __all__ = [
@@ -51,4 +52,5 @@ __all__ = [
     "get_router", "get_router_status",
     "router_get_market_data", "router_get_research_data", "router_get_news_data",
     "router_get_financial_data", "router_get_announcement_data",
+    "router_get_capital_operation_data",
 ]
