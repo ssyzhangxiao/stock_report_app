@@ -1,225 +1,188 @@
 import React from 'react';
-import { Card, Row, Col, Typography, Alert, Progress, Tag, Space, Divider, List, Descriptions } from 'antd';
-import { WarningOutlined, CheckCircleOutlined, InfoCircleOutlined, BarChartOutlined, RiseOutlined, ArrowUpOutlined } from '@ant-design/icons';
+import { Card, Typography, Alert, Tag, Space, Divider } from 'antd';
+import { WarningOutlined, CheckCircleOutlined, InfoCircleOutlined, FileTextOutlined } from '@ant-design/icons';
 
-const { Title, Text } = Typography;
+const { Title, Text, Paragraph } = Typography;
 
-interface MAIndicator {
-  name: string;
-  value: number;
-  status: 'good' | 'warning' | 'danger' | 'neutral';
-  description: string;
-  detail: string;
+interface MATechnicalAnalysisProps {
+  fundFlow?: any[];
+  technical?: any;
+  valuation?: any;
 }
 
-const indicators: MAIndicator[] = [
-  {
-    name: '股价相对位置',
-    value: 65,
-    status: 'warning',
-    description: '处于合理区间，有重组后的估值修复空间',
-    detail: '当前股价处于近一年65分位，属于相对合理区间。重大资产重组后，估值通常有20-50%的修复空间。'
-  },
-  {
-    name: '成交量异动指数',
-    value: 78,
-    status: 'warning',
-    description: '近期成交量异常放大，可能有资金提前介入',
-    detail: '近两周日均成交量较前两个月提升80%，呈现明显的放量特征，符合重大事项前的资金异动模式。'
-  },
-  {
-    name: '股东户数变化',
-    value: 35,
-    status: 'good',
-    description: '股东户数下降，筹码集中度提升',
-    detail: '最近一期季报显示股东户数环比下降12%，户均持股数增加，筹码集中趋势明显，有利于后续股价表现。'
-  },
-  {
-    name: '技术形态评分',
-    value: 72,
-    status: 'warning',
-    description: '技术形态显示出明显的底部特征',
-    detail: 'K线形态呈现双底结构，MACD金叉，RSI处于50-60区间，技术面配合重组预期，有较好的向上突破可能。'
-  },
-  {
-    name: '波动率指标',
-    value: 45,
-    status: 'neutral',
-    description: '波动率适中，处于可接受的风险水平',
-    detail: '30日历史波动率为25%，处于行业平均水平，重大事项前波动率通常会有所上升，当前属于平稳状态。'
-  },
-  {
-    name: '资金净流入强度',
-    value: 80,
-    status: 'danger',
-    description: '主力资金连续净流入，异动明显',
-    detail: '近5个交易日主力资金累计净流入3.2亿元，占流通市值1.8%，连续大额净流入是重大事项前的典型信号。'
-  },
-  {
-    name: '行业对比优势',
-    value: 75,
-    status: 'warning',
-    description: '相对行业指数有超额收益，走势独立',
-    detail: '近30日相对行业指数超额收益12%，走势相对独立，说明有特定资金关注，可能与潜在的资产重组有关。'
-  },
-  {
-    name: '股权结构稳定性',
-    value: 60,
-    status: 'neutral',
-    description: '第一大股东持股比例适中，有转让空间',
-    detail: '第一大股东持股35%，处于相对控股地位，有协议转让的可能性；前十大股东合计持股62%，股权集中度较高。'
-  }
-];
-
-const MATechnicalAnalysis: React.FC = () => {
-  const getStatusColor = (status: MAIndicator['status']) => {
-    switch (status) {
-      case 'good': return '#52c41a';
-      case 'warning': return '#faad14';
-      case 'danger': return '#ff4d4f';
-      default: return '#1890ff';
-    }
-  };
-
-  const getStatusIcon = (status: MAIndicator['status']) => {
-    switch (status) {
-      case 'good': return <CheckCircleOutlined />;
-      case 'warning': return <WarningOutlined />;
-      case 'danger': return <WarningOutlined />;
-      default: return <InfoCircleOutlined />;
-    }
-  };
-
-  const getTagColor = (status: MAIndicator['status']) => {
-    switch (status) {
-      case 'good': return 'success';
-      case 'warning': return 'warning';
-      case 'danger': return 'error';
-      default: return 'blue';
-    }
-  };
-
+const MATechnicalAnalysis: React.FC<MATechnicalAnalysisProps> = ({
+  fundFlow,
+  technical,
+  valuation,
+}) => {
+  // 从真实数据中提取信息
+  const hasFundFlowData = fundFlow && fundFlow.length > 0;
+  const fundFlowData = hasFundFlowData ? fundFlow![0] : null;
+  
+  // 计算技术指标状态
+  const rsi = technical?.rsi;
+  const macd = technical?.macd;
+  const close = technical?.close;
+  const ma5 = technical?.ma5;
+  const ma20 = technical?.ma20;
+  
+  // 判断趋势
+  const isUptrend = close && ma5 && ma20 && close > ma5 && ma5 > ma20;
+  const isDowntrend = close && ma5 && ma20 && close < ma5 && ma5 < ma20;
+  const trendStatus = isUptrend ? '上升' : isDowntrend ? '下降' : '震荡';
+  
+  // RSI状态
+  const rsiStatus = rsi > 70 ? '超买' : rsi < 30 ? '超卖' : '中性';
+  
+  // MACD状态
+  const macdStatus = macd > 0 ? '多头' : '空头';
+  
+  // 资金流向
+  const mainInflow = fundFlowData?.['主力净流入'] || 0;
+  const hasInflow = mainInflow > 0;
+  
   return (
-    <Card title="🔍 重大资产重组/控制权转让 - 技术面分析" style={{ marginBottom: 16 }}>
+    <Card title="🔍 重大资产重组/控制权转让 - 专业分析" style={{ marginBottom: 16 }}>
       <Alert
-        message="分析说明"
-        description="本分析从重大资产重组和控制权转让的专业角度，综合评估技术面、资金面和股权结构的异动特征，仅供参考。"
+        message="分析框架说明"
+        description="本分析从控制权转让的专业角度，综合评估技术面、资金面、估值水平和股权结构特征，为并购决策提供参考。"
         type="info"
         showIcon
         style={{ marginBottom: 16 }}
       />
       
-      <Row gutter={16}>
-        <Col xs={24} lg={12}>
-          <Card size="small" title="📊 关键指标监控" style={{ marginBottom: 16 }}>
-            <List
-              itemLayout="vertical"
-              dataSource={indicators}
-              renderItem={(item) => (
-                <List.Item>
-                  <Space direction="vertical" style={{ width: '100%' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Space>
-                        {getStatusIcon(item.status)}
-                        <Text strong>{item.name}</Text>
-                      </Space>
-                      <Tag color={getTagColor(item.status)}>{item.status.toUpperCase()}</Tag>
-                    </div>
-                    <Progress
-                      percent={item.value}
-                      strokeColor={getStatusColor(item.status)}
-                      size="small"
-                    />
-                    <Text type="secondary" style={{ fontSize: 12 }}>{item.description}</Text>
-                    <Divider style={{ margin: '8px 0' }} />
-                    <Text style={{ fontSize: 12, lineHeight: 1.5 }}>{item.detail}</Text>
-                  </Space>
-                </List.Item>
-              )}
-            />
-          </Card>
-        </Col>
-        
-        <Col xs={24} lg={12}>
-          <Card size="small" title="📋 重大事项信号识别" style={{ marginBottom: 16 }}>
-            <Descriptions column={1} size="small">
-              <Descriptions.Item label="信号强度">
-                <Progress percent={75} strokeColor="#faad14" status="active" />
-              </Descriptions.Item>
-              <Descriptions.Item label="资金异动">
-                <Space>
-                  <ArrowUpOutlined />
-                  <Tag color="error">80% 放量</Tag>
-                  <Text type="secondary" style={{ fontSize: 12 }}>连续5日净流入</Text>
-                </Space>
-              </Descriptions.Item>
-              <Descriptions.Item label="技术形态">
-                <Space>
-                  <BarChartOutlined />
-                  <Tag color="success">双底结构</Tag>
-                  <Text type="secondary" style={{ fontSize: 12 }}>MACD金叉</Text>
-                </Space>
-              </Descriptions.Item>
-              <Descriptions.Item label="筹码分布">
-                <Space>
-                  <RiseOutlined />
-                  <Tag color="warning">集中度提升</Tag>
-                  <Text type="secondary" style={{ fontSize: 12 }}>股东户数下降12%</Text>
-                </Space>
-              </Descriptions.Item>
-            </Descriptions>
-            
-            <Divider />
-            
-            <Title level={5}>⚠️ 风险提示</Title>
-            <Space direction="vertical" style={{ width: '100%' }}>
-              <Text type="secondary" style={{ fontSize: 12, lineHeight: 1.6 }}>
-                1. 本分析基于技术面和资金面特征，不构成投资建议
-              </Text>
-              <Text type="secondary" style={{ fontSize: 12, lineHeight: 1.6 }}>
-                2. 重大事项存在不确定性，需结合基本面和消息面综合判断
-              </Text>
-              <Text type="secondary" style={{ fontSize: 12, lineHeight: 1.6 }}>
-                3. 股价已部分反映预期，需警惕利好出尽风险
-              </Text>
-              <Text type="secondary" style={{ fontSize: 12, lineHeight: 1.6 }}>
-                4. 建议设置合理止损，控制仓位
-              </Text>
-            </Space>
-          </Card>
+      {/* 综合分析报告 */}
+      <Card size="small" title={<><FileTextOutlined /> 综合分析报告</>} style={{ marginBottom: 16 }}>
+        <Space direction="vertical" style={{ width: '100%' }} size="middle">
           
-          <Card size="small" title="💡 重组后估值展望">
-            <Space direction="vertical" style={{ width: '100%' }}>
-              <Row gutter={8}>
-                <Col span={8}>
-                  <div style={{ textAlign: 'center', padding: 8, background: 'var(--bg-elevated)', borderRadius: 4 }}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>保守预期</Text>
-                    <br />
-                    <Text strong style={{ color: '#52c41a', fontSize: 18 }}>+20%</Text>
-                  </div>
-                </Col>
-                <Col span={8}>
-                  <div style={{ textAlign: 'center', padding: 8, background: 'var(--bg-elevated)', borderRadius: 4 }}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>中性预期</Text>
-                    <br />
-                    <Text strong style={{ color: '#1890ff', fontSize: 18 }}>+35%</Text>
-                  </div>
-                </Col>
-                <Col span={8}>
-                  <div style={{ textAlign: 'center', padding: 8, background: 'var(--bg-elevated)', borderRadius: 4 }}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>乐观预期</Text>
-                    <br />
-                    <Text strong style={{ color: '#faad14', fontSize: 18 }}>+50%</Text>
-                  </div>
-                </Col>
-              </Row>
-              <Text type="secondary" style={{ fontSize: 11, marginTop: 8 }}>
-                估值提升空间基于可比公司重组后表现估算，实际情况可能有所不同
-              </Text>
-            </Space>
-          </Card>
-        </Col>
-      </Row>
+          {/* 技术面分析 */}
+          <div>
+            <Title level={5} style={{ marginBottom: 8, color: '#1890ff' }}>
+              一、技术面分析
+            </Title>
+            <Paragraph style={{ fontSize: 13, lineHeight: 1.8, textAlign: 'justify' }}>
+              从技术指标来看，当前股价呈现<strong>{trendStatus}</strong>趋势。
+              {rsi ? `RSI指标为${rsi.toFixed(1)}，处于${rsiStatus}区域，` : ''}
+              {macd ? `MACD指标显示${macdStatus}信号，` : ''}
+              {close && ma5 && ma20 ? 
+                `股价${close.toFixed(2)}元位于MA5(${ma5.toFixed(2)})和MA20(${ma20.toFixed(2)})${close > ma20 ? '上方' : '下方'}，` : ''}
+              整体技术形态{isUptrend ? '向好，有利于控制权转让的推进' : isDowntrend ? '偏弱，需关注后续走势变化' : '处于整理阶段，建议持续观察'}。
+            </Paragraph>
+          </div>
+          
+          <Divider style={{ margin: '12px 0' }} />
+          
+          {/* 资金面分析 */}
+          <div>
+            <Title level={5} style={{ marginBottom: 8, color: '#52c41a' }}>
+              二、资金面分析
+            </Title>
+            <Paragraph style={{ fontSize: 13, lineHeight: 1.8, textAlign: 'justify' }}>
+              {hasFundFlowData ? (
+                <>
+                  近期资金流向显示<strong>{hasInflow ? '主力资金净流入' : '主力资金净流出'}</strong>，
+                  {mainInflow !== 0 ? `主力净流入金额为${(Math.abs(mainInflow) / 1e8).toFixed(2)}亿元，` : ''}
+                  {hasInflow ? 
+                    '资金面的积极变化可能反映市场对控制权变更的预期，有利于转让价格的谈判。' : 
+                    '资金面的谨慎态度可能影响转让进程，需关注后续资金动向。'}
+                </>
+              ) : (
+                '暂无资金流向数据，建议结合大宗交易和龙虎榜数据综合判断资金态度。'
+              )}
+            </Paragraph>
+          </div>
+          
+          <Divider style={{ margin: '12px 0' }} />
+          
+          {/* 估值分析 */}
+          <div>
+            <Title level={5} style={{ marginBottom: 8, color: '#fa8c16' }}>
+              三、估值分析
+            </Title>
+            <Paragraph style={{ fontSize: 13, lineHeight: 1.8, textAlign: 'justify' }}>
+              {valuation?.pe_ratio ? (
+                <>
+                  当前市盈率(PE)为<strong>{valuation.pe_ratio.toFixed(2)}倍</strong>，
+                  {valuation.industry_pe ? `行业平均PE为${valuation.industry_pe.toFixed(2)}倍，` : ''}
+                  {valuation.market_cap ? `总市值约${valuation.market_cap}，` : ''}
+                  {valuation.pe_ratio < 15 ? 
+                    '估值处于较低水平，控制权转让具备较好的安全边际。' : 
+                    valuation.pe_ratio > 30 ? 
+                    '估值相对较高，转让定价需充分考虑溢价合理性。' : 
+                    '估值处于合理区间，转让价格可参考市场价适当溢价。'}
+                </>
+              ) : (
+                '暂无估值数据，建议参考同行业可比公司估值水平。'
+              )}
+            </Paragraph>
+          </div>
+          
+          <Divider style={{ margin: '12px 0' }} />
+          
+          {/* 控制权转让风险评估 */}
+          <div>
+            <Title level={5} style={{ marginBottom: 8, color: '#ff4d4f' }}>
+              四、控制权转让风险评估
+            </Title>
+            <Paragraph style={{ fontSize: 13, lineHeight: 1.8, textAlign: 'justify' }}>
+              综合技术、资金、估值三个维度，当前控制权转让风险评级为
+              <Tag color={isUptrend && hasInflow ? 'success' : isDowntrend && !hasInflow ? 'error' : 'warning'} 
+                   style={{ margin: '0 4px' }}>
+                {isUptrend && hasInflow ? '低风险' : isDowntrend && !hasInflow ? '较高风险' : '中等风险'}
+              </Tag>。
+              {isUptrend && hasInflow ? 
+                '技术面和资金面均呈现积极信号，建议积极推进控制权转让事宜，但需关注溢价水平的合理性。' :
+                isDowntrend && !hasInflow ?
+                '技术面偏弱且资金流出，建议暂缓转让计划或调整转让价格预期，等待更合适的时机。' :
+                '市场信号存在分歧，建议进一步分析基本面和行业前景，审慎决策。'}
+            </Paragraph>
+          </div>
+          
+          <Divider style={{ margin: '12px 0' }} />
+          
+          {/* 专业建议 */}
+          <div>
+            <Title level={5} style={{ marginBottom: 8, color: '#722ed1' }}>
+              五、专业建议
+            </Title>
+            <Paragraph style={{ fontSize: 13, lineHeight: 1.8, textAlign: 'justify' }}>
+              <strong>对转让方：</strong>
+              {isUptrend ? 
+                '当前市场氛围较好，可考虑在股价相对高位推进转让，有利于实现较好的转让价格。' : 
+                '市场氛围一般，如非急需，建议等待更好的市场窗口；如必须转让，需做好价格折让准备。'}
+              <br /><br />
+              <strong>对受让方：</strong>
+              {valuation?.pe_ratio && valuation.pe_ratio < 20 ? 
+                '当前估值水平具备一定吸引力，可在尽职调查基础上积极参与，但需充分评估控制权溢价。' : 
+                '当前估值不低，建议深入分析公司内在价值和协同效应，审慎评估投资回报率。'}
+            </Paragraph>
+          </div>
+          
+        </Space>
+      </Card>
+      
+      {/* 风险提示 */}
+      <Alert
+        message="⚠️ 重要提示"
+        description={
+          <Space direction="vertical" size="small">
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              1. 本分析基于公开的技术面和资金面数据，不构成投资建议
+            </Text>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              2. 控制权转让涉及复杂的法律、财务和监管问题，需专业团队全面尽调
+            </Text>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              3. 股价波动受多种因素影响，本分析仅供参考，不作为交易依据
+            </Text>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              4. 建议结合公司基本面、行业前景和宏观环境综合判断
+            </Text>
+          </Space>
+        }
+        type="warning"
+        showIcon
+      />
     </Card>
   );
 };

@@ -152,6 +152,8 @@ const ValuationComparison: React.FC<ValuationComparisonProps> = ({
           formatter: '{c}x',
           color: '#ff6b6b',
         },
+        min: 0,
+        max: (value: any) => Math.ceil(value.max * 1.1),
       });
     }
 
@@ -170,7 +172,7 @@ const ValuationComparison: React.FC<ValuationComparisonProps> = ({
                 result += `${p.marker}总市值: ${val}亿<br/>`;
               }
             } else if (p.seriesName === 'PE') {
-              result += `${p.marker}PE: ${p.value.toFixed(2)}x<br/>`;
+              result += `${p.marker}PE: ${Math.round(p.value)}x<br/>`;
             }
           });
           return result;

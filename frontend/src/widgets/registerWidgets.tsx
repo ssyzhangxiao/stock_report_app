@@ -154,7 +154,7 @@ function registerAllWidgets(): void {
         icon: '📋',
         requiredData: ['deep_financial'],
         implemented: true,
-        defaultSize: { w: 40, h: 25 },
+        defaultSize: { w: 20, h: 25 },
         tags: ['财务', '深度', '风控'],
       },
       component: ({ data }: WidgetProps) => (
@@ -268,15 +268,22 @@ function registerAllWidgets(): void {
     {
       meta: {
         id: 'ma-technical-analysis',
-        name: '均线技术分析',
-        description: 'MA均线系统技术分析',
+        name: '控制权转让分析',
+        description: '重大资产重组/控制权转让专业分析',
         category: 'panel',
         icon: '📐',
+        requiredData: ['fund_flow', 'technical', 'valuation'],
         implemented: true,
-        defaultSize: { w: 20, h: 14 },
-        tags: ['技术', '深度'],
+        defaultSize: { w: 40, h: 35 },
+        tags: ['技术', '深度', '并购'],
       },
-      component: () => <MATechnicalAnalysis />,
+      component: ({ data }: WidgetProps) => (
+        <MATechnicalAnalysis
+          fundFlow={data.fund_flow || []}
+          technical={data.technical}
+          valuation={data.valuation}
+        />
+      ),
     },
 
     {

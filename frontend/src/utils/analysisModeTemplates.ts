@@ -57,19 +57,17 @@ export const FULL_ANALYSIS_MODE: AnalysisModeTemplate = {
       name: '财务分析',
       description: '深度财务数据挖掘',
       layout: [
-        { i: 'deep-financial-table', x: 0, y: 0, w: 40, h: 25, requiredData: ['deep_financial'] },
-        { i: 'financial-indicators', x: 0, y: 25, w: 20, h: 12, requiredData: ['deep_financial'] },
-        { i: 'profitability-analysis', x: 20, y: 25, w: 20, h: 12, requiredData: ['deep_financial'] },
-        { i: 'financial-trend', x: 0, y: 37, w: 40, h: 15, requiredData: ['deep_financial'] },
-        { i: 'roe-analysis', x: 0, y: 52, w: 40, h: 28, requiredData: ['deep_financial'] },
-      ]
+        { i: 'deep-financial-table', x: 0, y: 0, w: 20, h: 40, requiredData: ['deep_financial'] },
+        { i: 'roe-analysis', x: 20, y: 0, w: 20, h: 40, requiredData: ['deep_financial'] },
+      ],
     },
     'valuation': {
       id: 'valuation',
       name: '估值分析',
       description: '多模型估值对比',
       layout: [
-        { i: 'dcf-valuation', x: 0, y: 0, w: 40, h: 14, requiredData: ['symbol'] },
+        { i: 'dcf-valuation', x: 0, y: 0, w: 20, h: 14, requiredData: ['symbol'] },
+        { i: 'valuation-comparison', x: 20, y: 0, w: 20, h: 14, requiredData: ['valuation', 'latest_price', 'deep_financial'] },
         { i: 'sensitivity-heatmap', x: 0, y: 14, w: 40, h: 15, requiredData: ['symbol'] },
         { i: 'peer-comparison', x: 0, y: 29, w: 40, h: 15, requiredData: ['symbol'] },
       ]

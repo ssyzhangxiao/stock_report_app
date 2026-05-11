@@ -21,6 +21,13 @@ interface AnalystConsensus {
   industry?: string;
   error?: string;
   target_price_history?: TargetPricePoint[];
+  data_source?: string;
+  forecast_year?: string;
+  org_count?: number;
+  eps_mean?: number;
+  eps_min?: number;
+  eps_max?: number;
+  industry_avg?: number;
 }
 
 interface AnalystConsensusCardProps {
@@ -29,7 +36,16 @@ interface AnalystConsensusCardProps {
 }
 
 const AnalystConsensusCard: React.FC<AnalystConsensusCardProps> = ({ consensus, currentPrice }) => {
-  if (consensus.error || !consensus.latest_rating) {
+  const hasValidRating = consensus.latest_rating &&
+    consensus.latest_rating !== 'N/A' &&
+    consensus.latest_rating !== '暂无' &&
+    consensus.latest_rating !== '未知';
+
+  const hasTargetPrice = consensus.target_price && consensus.target_price > 0;
+  const hasHistory = consensus.target_price_history && consensus.target_price_history.length > 0;
+  const hasEpsForecast = consensus.org_count && consensus.org_count > 0 && consensus.eps_mean;
+
+  if (consensus.error || (!hasValidRating && !hasTargetPrice && !hasHistory && !hasEpsForecast)) {
     return (
       <Card title="👥 分析师评级" style={{ borderRadius: 8, marginBottom: 0 }}>
         <div style={{ textAlign: 'center', padding: 24, color: '#999' }}>
@@ -44,7 +60,8 @@ const AnalystConsensusCard: React.FC<AnalystConsensusCardProps> = ({ consensus, 
     ? ((targetPrice - currentPrice) / currentPrice * 100).toFixed(2)
     : null;
 
-  const getRatingColor = (rating: string) => {
+  const getRatingColor = (rating?: string) => {
+    if (!rating) return 'default';
     const r = rating.toLowerCase();
     if (r.includes('买入') || r.includes('强烈推荐')) return 'success';
     if (r.includes('增持') || r.includes('推荐')) return 'processing';
@@ -53,7 +70,6 @@ const AnalystConsensusCard: React.FC<AnalystConsensusCardProps> = ({ consensus, 
     return 'default';
   };
 
-  // 散点图
   const history = consensus.target_price_history || [];
   const hasScatter = history.length > 1;
 
@@ -88,79 +104,137 @@ const AnalystConsensusCard: React.FC<AnalystConsensusCardProps> = ({ consensus, 
           return r.includes('买入') ? '#52c41a' : r.includes('增持') ? '#1890ff' : '#faad14';
         }
       },
+      markLine: currentPrice ? {
+        silent: true,
+        data: [{ yAxis: currentPrice, label: { formatter: `现价 ${currentPrice}`, color: 'var(--color-up)' } }],
+        lineStyle: { color: 'var(--color-up)', type: 'dashed' as const },
+      } : undefined,
     }],
-    // 当前股价参考线
-    ...(currentPrice ? {
-      series: [{
-        type: 'scatter' as const,
-        symbolSize: 8,
-        data: history.map(d => d.目标价),
-        itemStyle: {
-          color: (params: any) => {
-            const r = history[params.dataIndex]?.评级 || '';
-            return r.includes('买入') ? '#52c41a' : r.includes('增持') ? '#1890ff' : '#faad14';
-          }
-        },
-        markLine: {
-          silent: true,
-          data: [{ yAxis: currentPrice, label: { formatter: `现价 ${currentPrice}`, color: 'var(--color-up)' } }],
-          lineStyle: { color: 'var(--color-up)', type: 'dashed' as const },
-        }
-      }],
-    } : {}),
   } : null;
 
-  return (
-    <Card title="👥 分析师一致性预期" style={{ borderRadius: 8, marginBottom: 0 }} bodyStyle={{ padding: 12 }}>
-      <Row gutter={12} style={{ marginBottom: 16 }}>
-        <Col span={8}>
-          <Statistic title="最新评级" value={consensus.latest_rating}
-            prefix={<Tag color={getRatingColor(consensus.latest_rating)} style={{ fontSize: 11 }}>{consensus.latest_rating}</Tag>}
-            valueStyle={{ fontSize: 16 }} />
-        </Col>
-        <Col span={8}>
-          <Statistic title="目标价" value={targetPrice} precision={2} suffix="元"
-            valueStyle={{ color: '#1890ff' }} />
-        </Col>
-        <Col span={8}>
-          <Statistic title="评级日期" value={consensus.rating_date || 'N/A'} valueStyle={{ fontSize: 14 }} />
-        </Col>
-      </Row>
+  const isEpsForecastMode = hasEpsForecast && !hasValidRating;
 
-      {upside !== null && (
+  return (
+    <Card title={isEpsForecastMode ? '👥 机构盈利预测' : '👥 分析师一致性预期'} style={{ borderRadius: 8, marginBottom: 0 }} bodyStyle={{ padding: 12 }}>
+      {isEpsForecastMode ? (
         <>
-          <Divider style={{ margin: '8px 0' }} />
           <Row gutter={12} style={{ marginBottom: 16 }}>
-            <Col span={12}>
-              <Statistic title="当前价格" value={currentPrice} precision={2} suffix="元" />
+            <Col span={8}>
+              <Statistic title="预测年度" value={consensus.forecast_year || 'N/A'} valueStyle={{ fontSize: 16 }} />
             </Col>
-            <Col span={12}>
-              <Statistic title="上涨空间" value={parseFloat(upside)} precision={2} suffix="%"
-                prefix={parseFloat(upside) >= 0 ? <ArrowUpOutlined /> : <ArrowDownOutlined />}
-                valueStyle={{ color: parseFloat(upside) >= 0 ? '#cf1322' : '#3f8600', fontSize: 20, fontWeight: 'bold' }} />
+            <Col span={8}>
+              <Statistic title="预测机构数" value={consensus.org_count || 0} suffix="家"
+                valueStyle={{ color: '#1890ff' }} />
+            </Col>
+            <Col span={8}>
+              <Statistic title="EPS均值" value={consensus.eps_mean || 0} precision={2} suffix="元"
+                valueStyle={{ color: '#52c41a' }} />
             </Col>
           </Row>
-        </>
-      )}
 
-      {hasScatter && (
+          <Row gutter={12} style={{ marginBottom: 16 }}>
+            <Col span={6}>
+              <Statistic title="EPS最低" value={consensus.eps_min || 0} precision={2} suffix="元" valueStyle={{ fontSize: 14 }} />
+            </Col>
+            <Col span={6}>
+              <Statistic title="EPS最高" value={consensus.eps_max || 0} precision={2} suffix="元" valueStyle={{ fontSize: 14 }} />
+            </Col>
+            <Col span={6}>
+              <Statistic title="行业均值" value={consensus.industry_avg || 0} precision={2} suffix="元" valueStyle={{ fontSize: 14 }} />
+            </Col>
+            <Col span={6}>
+              <Statistic title="目标价" value={targetPrice} precision={2} suffix="元"
+                valueStyle={{ color: '#ff4d4f', fontSize: 14 }} />
+            </Col>
+          </Row>
+
+          {upside !== null && currentPrice && (
+            <>
+              <Divider style={{ margin: '8px 0' }} />
+              <Row gutter={12} style={{ marginBottom: 16 }}>
+                <Col span={12}>
+                  <Statistic title="当前价格" value={currentPrice} precision={2} suffix="元" />
+                </Col>
+                <Col span={12}>
+                  <Statistic title="上涨空间" value={parseFloat(upside)} precision={2} suffix="%"
+                    prefix={parseFloat(upside) >= 0 ? <ArrowUpOutlined /> : <ArrowDownOutlined />}
+                    valueStyle={{ color: parseFloat(upside) >= 0 ? '#cf1322' : '#3f8600', fontSize: 20, fontWeight: 'bold' }} />
+                </Col>
+              </Row>
+            </>
+          )}
+
+          {currentPrice && consensus.eps_mean && (
+            <>
+              <Divider style={{ margin: '8px 0' }} />
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Statistic title="预测PE" value={currentPrice && consensus.eps_mean ? (currentPrice / consensus.eps_mean).toFixed(1) : '--'} suffix="x"
+                    valueStyle={{ color: '#667eea', fontSize: 16 }} />
+                </Col>
+                <Col span={12}>
+                  <Statistic title="PEG(行业)" value={consensus.industry_avg && consensus.eps_mean ? (consensus.eps_mean / consensus.industry_avg).toFixed(2) : '--'}
+                    valueStyle={{ fontSize: 16 }} />
+                </Col>
+              </Row>
+            </>
+          )}
+        </>
+      ) : (
         <>
-          <Divider style={{ margin: '8px 0' }} />
-          <Title level={5} style={{ marginTop: 4, fontSize: 13 }}>📊 分析师目标价分布</Title>
-          <ReactECharts option={scatterOption!} style={{ height: 240, width: '100%' }}
-            opts={{ renderer: 'canvas' }} notMerge />
+          <Row gutter={12} style={{ marginBottom: 16 }}>
+            <Col span={8}>
+              <Statistic title="最新评级" value={consensus.latest_rating}
+                prefix={<Tag color={getRatingColor(consensus.latest_rating)} style={{ fontSize: 11 }}>{consensus.latest_rating}</Tag>}
+                valueStyle={{ fontSize: 16 }} />
+            </Col>
+            <Col span={8}>
+              <Statistic title="目标价" value={targetPrice} precision={2} suffix="元"
+                valueStyle={{ color: '#1890ff' }} />
+            </Col>
+            <Col span={8}>
+              <Statistic title="评级日期" value={consensus.rating_date || 'N/A'} valueStyle={{ fontSize: 14 }} />
+            </Col>
+          </Row>
+
+          {upside !== null && (
+            <>
+              <Divider style={{ margin: '8px 0' }} />
+              <Row gutter={12} style={{ marginBottom: 16 }}>
+                <Col span={12}>
+                  <Statistic title="当前价格" value={currentPrice} precision={2} suffix="元" />
+                </Col>
+                <Col span={12}>
+                  <Statistic title="上涨空间" value={parseFloat(upside)} precision={2} suffix="%"
+                    prefix={parseFloat(upside) >= 0 ? <ArrowUpOutlined /> : <ArrowDownOutlined />}
+                    valueStyle={{ color: parseFloat(upside) >= 0 ? '#cf1322' : '#3f8600', fontSize: 20, fontWeight: 'bold' }} />
+                </Col>
+              </Row>
+            </>
+          )}
+
+          {hasScatter && (
+            <>
+              <Divider style={{ margin: '8px 0' }} />
+              <Title level={5} style={{ marginTop: 4, fontSize: 13 }}>📊 分析师目标价分布</Title>
+              <ReactECharts option={scatterOption!} style={{ height: 240, width: '100%' }}
+                opts={{ renderer: 'canvas' }} notMerge />
+            </>
+          )}
         </>
       )}
 
       <Divider style={{ margin: '8px 0' }} />
       <Row gutter={12}>
         <Col span={12}><Text type="secondary" style={{ fontSize: 11 }}>股票代码：</Text><Text strong>{consensus.stock_code || 'N/A'}</Text></Col>
-        <Col span={12}><Text type="secondary" style={{ fontSize: 11 }}>所属行业：</Text><Tag color="blue" style={{ fontSize: 11 }}>{consensus.industry || 'N/A'}</Tag></Col>
+        <Col span={12}><Text type="secondary" style={{ fontSize: 11 }}>数据来源：</Text><Tag color="blue" style={{ fontSize: 11 }}>{consensus.data_source || 'N/A'}</Tag></Col>
       </Row>
 
       <div style={{ marginTop: 16, padding: 10, background: 'var(--bg-elevated)', borderRadius: 4 }}>
         <Text type="secondary" style={{ fontSize: 11 }}>
-          ⚠️ 分析师评级仅供参考。绿色=买入，蓝色=增持，黄色=中性。虚线为当前股价。
+          {isEpsForecastMode
+            ? '⚠️ 盈利预测数据来自多家机构综合，EPS均值为一致预期。仅供参考，不构成投资建议。'
+            : '⚠️ 分析师评级仅供参考。绿色=买入，蓝色=增持，黄色=中性。虚线为当前股价。'}
         </Text>
       </div>
     </Card>

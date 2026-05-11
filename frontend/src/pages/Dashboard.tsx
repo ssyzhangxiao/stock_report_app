@@ -18,7 +18,6 @@ import { registerAllWidgets, DynamicWidgetRenderer, widgetRegistry } from '../wi
 
 const { Title, Text } = Typography;
 
-// 样式定义 - 使用CSS变量
 const getStyles = (_theme: 'light' | 'dark') => ({
   page: {
     minHeight: '100vh',
@@ -71,13 +70,11 @@ const Dashboard: React.FC = () => {
 
   const today = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
 
-  // 初始化技能系统和Widget组件
   useEffect(() => {
     initSkills();
     registerAllWidgets();
   }, []);
 
-  // 当选中的模式改变时，设置默认标签页
   useEffect(() => {
     const modeTemplate = getAnalysisModeById(selectedMode);
     if (modeTemplate) {
@@ -88,7 +85,6 @@ const Dashboard: React.FC = () => {
     }
   }, [selectedMode]);
 
-  // Widget渲染 - 使用动态组件渲染器替代固化switch-case
   const renderWidget = (widgetId: string) => {
     if (!data) return null;
     console.log('renderWidget 被调用 widgetId:', widgetId, 'data.symbol:', data.symbol);
@@ -113,7 +109,6 @@ const Dashboard: React.FC = () => {
     setProgressResults([]);
 
     try {
-      // 并行执行API数据获取和技能链执行
       const [smartResult] = await Promise.all([
         getSmartAnalysis(symbol.trim(), 2),
         executeSkillChain()
@@ -131,12 +126,10 @@ const Dashboard: React.FC = () => {
 
   const executeSkillChain = async () => {
     try {
-      // 设置进度回调
       skillExecutor.setProgressCallback((results) => {
         setProgressResults([...results]);
       });
 
-      // 执行选定的分析模式
       await skillExecutor.executeMode(selectedMode, { symbol });
     } catch (error: any) {
       console.error('技能执行失败:', error);
@@ -319,20 +312,21 @@ const Dashboard: React.FC = () => {
                     items={tabItems}
                     type="card"
                   />
-                  {/* 渲染当前标签页的widget */}
                   <div style={{ marginTop: 16 }}>
-                    {modeTemplate.tabs[activeTab]?.layout.map((widget: any) => {
-                      const widgetContent = renderWidget(widget.i);
-                      if (!widgetContent) return null;
-                      return (
-                        <Card
-                          key={widget.i}
-                          style={{ ...styles.dataCard, marginBottom: 16 }}
-                        >
-                          {widgetContent}
-                        </Card>
-                      );
-                    })}
+                    <Row gutter={[16, 16]}>
+                      {modeTemplate.tabs[activeTab]?.layout.map((widget: any) => {
+                        const widgetContent = renderWidget(widget.i);
+                        if (!widgetContent) return null;
+                        const span = Math.round((widget.w || 40) * 24 / 40);
+                        return (
+                          <Col key={widget.i} span={span}>
+                            <Card style={{ ...styles.dataCard, marginBottom: 0, height: '100%' }}>
+                              {widgetContent}
+                            </Card>
+                          </Col>
+                        );
+                      })}
+                    </Row>
                   </div>
                 </div>
               );

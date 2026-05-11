@@ -160,32 +160,32 @@ class AkShareDataSource(DataSource):
             html = r.text
 
             field_patterns = [
-                ("main_business", r'主营业务：.*?<td[^>]*>(.*?)</td>'),
-                ("products", r'产品名称：.*?<td[^>]*>(.*?)</td>'),
-                ("controlling_shareholder", r'控股股东：.*?<td[^>]*>(.*?)</td>'),
-                ("actual_controller", r'实际控制人：.*?<td[^>]*>(.*?)</td>'),
-                ("final_controller", r'最终控制人：.*?<td[^>]*>(.*?)</td>'),
-                ("chairman", r'董事长：.*?<td[^>]*>(.*?)</td>'),
-                ("secretary", r'董.*?秘：.*?<td[^>]*>(.*?)</td>'),
-                ("legal_representative", r'法人代表：.*?<td[^>]*>(.*?)</td>'),
-                ("general_manager", r'总.*?经理：.*?<td[^>]*>(.*?)</td>'),
-                ("registered_capital", r'注册.*?(?:资本|资金)：.*?<td[^>]*>(.*?)</td>'),
-                ("employee_count", r'员工人数：.*?<td[^>]*>(.*?)</td>'),
-                ("description", r'公司简介：.*?<td[^>]*>(.*?)</td>'),
-                ("english_name", r'英文名称：.*?<td[^>]*>(.*?)</td>'),
-                ("former_name", r'曾.*?名：.*?<td[^>]*>(.*?)</td>'),
-                ("region", r'所属地域：.*?<td[^>]*>(.*?)</td>'),
-                ("website", r'公司网址：.*?<td[^>]*>(.*?)</td>'),
-                ("business_scope", r'经营范围：.*?<td[^>]*>(.*?)</td>'),
-                ("listing_date", r'上市时间：.*?<td[^>]*>(.*?)</td>'),
+                ("main_business", r"主营业务：.*?<td[^>]*>(.*?)</td>"),
+                ("products", r"产品名称：.*?<td[^>]*>(.*?)</td>"),
+                ("controlling_shareholder", r"控股股东：.*?<td[^>]*>(.*?)</td>"),
+                ("actual_controller", r"实际控制人：.*?<td[^>]*>(.*?)</td>"),
+                ("final_controller", r"最终控制人：.*?<td[^>]*>(.*?)</td>"),
+                ("chairman", r"董事长：.*?<td[^>]*>(.*?)</td>"),
+                ("secretary", r"董.*?秘：.*?<td[^>]*>(.*?)</td>"),
+                ("legal_representative", r"法人代表：.*?<td[^>]*>(.*?)</td>"),
+                ("general_manager", r"总.*?经理：.*?<td[^>]*>(.*?)</td>"),
+                ("registered_capital", r"注册.*?(?:资本|资金)：.*?<td[^>]*>(.*?)</td>"),
+                ("employee_count", r"员工人数：.*?<td[^>]*>(.*?)</td>"),
+                ("description", r"公司简介：.*?<td[^>]*>(.*?)</td>"),
+                ("english_name", r"英文名称：.*?<td[^>]*>(.*?)</td>"),
+                ("former_name", r"曾.*?名：.*?<td[^>]*>(.*?)</td>"),
+                ("region", r"所属地域：.*?<td[^>]*>(.*?)</td>"),
+                ("website", r"公司网址：.*?<td[^>]*>(.*?)</td>"),
+                ("business_scope", r"经营范围：.*?<td[^>]*>(.*?)</td>"),
+                ("listing_date", r"上市时间：.*?<td[^>]*>(.*?)</td>"),
             ]
 
             for key, pattern in field_patterns:
                 m = re.findall(pattern, html, re.DOTALL)
                 if m:
-                    val = re.sub(r'<[^>]+>', '', m[0]).strip()
-                    val = re.sub(r'\s+', ' ', val)
-                    if val and val != '--':
+                    val = re.sub(r"<[^>]+>", "", m[0]).strip()
+                    val = re.sub(r"\s+", " ", val)
+                    if val and val != "--":
                         result[key] = val
 
             if result:
@@ -277,7 +277,9 @@ class AkShareDataSource(DataSource):
                 ratio = top.get("FREE_HOLDNUM_RATIO")
                 if name:
                     if ratio is not None:
-                        result["controlling_shareholder"] = f"{name} (持有比例：{ratio:.2f}%)"
+                        result["controlling_shareholder"] = (
+                            f"{name} (持有比例：{ratio:.2f}%)"
+                        )
                     else:
                         result["controlling_shareholder"] = name
 
@@ -312,7 +314,12 @@ class AkShareDataSource(DataSource):
                     continue
                 mainop_type = item.get("MAINOP_TYPE", "")
                 item_name = item.get("ITEM_NAME", "").strip()
-                if mainop_type == "2" and item_name and item_name not in seen and item_name not in skip_keywords:
+                if (
+                    mainop_type == "2"
+                    and item_name
+                    and item_name not in seen
+                    and item_name not in skip_keywords
+                ):
                     seen.add(item_name)
                     products.append(item_name)
             if products:
@@ -344,35 +351,67 @@ class AkShareDataSource(DataSource):
         if not profile.get("name") or not profile.get("main_business"):
             try:
                 result = _fetch(
-                    lambda: __import__("akshare").stock_individual_info_em(symbol=symbol)
+                    lambda: __import__("akshare").stock_individual_info_em(
+                        symbol=symbol
+                    )
                 )
-                if result is not None and not (hasattr(result, "empty") and result.empty):
+                if result is not None and not (
+                    hasattr(result, "empty") and result.empty
+                ):
                     raw = dict(zip(result["item"], result["value"]))
                     akshare_fields = {
                         "name": raw.get("股票简称", "") or profile.get("name", ""),
-                        "region": profile.get("region", "") or raw.get("省份", "") or raw.get("所属地域", ""),
-                        "english_name": profile.get("english_name", "") or raw.get("英文名称", ""),
+                        "region": profile.get("region", "")
+                        or raw.get("省份", "")
+                        or raw.get("所属地域", ""),
+                        "english_name": profile.get("english_name", "")
+                        or raw.get("英文名称", ""),
                         "industry": profile.get("industry", "") or raw.get("行业", ""),
-                        "former_name": profile.get("former_name", "") or raw.get("曾用名", ""),
-                        "main_business": profile.get("main_business", "") or raw.get("主营业务", ""),
-                        "products": profile.get("products", "") or raw.get("产品名称", ""),
-                        "controlling_shareholder": profile.get("controlling_shareholder", "") or raw.get("控股股东", ""),
-                        "actual_controller": profile.get("actual_controller", "") or raw.get("实际控制人", ""),
-                        "final_controller": profile.get("final_controller", "") or raw.get("最终控制人", ""),
-                        "chairman": profile.get("chairman", "") or raw.get("董事长", ""),
-                        "secretary": profile.get("secretary", "") or raw.get("董事会秘书", ""),
-                        "legal_representative": profile.get("legal_representative", "") or raw.get("法人代表", ""),
-                        "general_manager": profile.get("general_manager", "") or raw.get("总经理", ""),
-                        "registered_capital": profile.get("registered_capital", "") or raw.get("注册资本", "") or raw.get("总股本", ""),
-                        "employee_count": profile.get("employee_count", "") or raw.get("员工人数", ""),
-                        "description": profile.get("description", "") or raw.get("公司简介", ""),
-                        "listing_date": profile.get("listing_date", "") or raw.get("上市时间", ""),
-                        "total_market_cap": profile.get("total_market_cap", "") or raw.get("总市值", ""),
-                        "circulating_market_cap": profile.get("circulating_market_cap", "") or raw.get("流通市值", ""),
-                        "total_shares": profile.get("total_shares", "") or raw.get("总股本", ""),
-                        "circulating_shares": profile.get("circulating_shares", "") or raw.get("流通股", ""),
-                        "website": profile.get("website", "") or raw.get("公司网址", ""),
-                        "business_scope": profile.get("business_scope", "") or raw.get("经营范围", ""),
+                        "former_name": profile.get("former_name", "")
+                        or raw.get("曾用名", ""),
+                        "main_business": profile.get("main_business", "")
+                        or raw.get("主营业务", ""),
+                        "products": profile.get("products", "")
+                        or raw.get("产品名称", ""),
+                        "controlling_shareholder": profile.get(
+                            "controlling_shareholder", ""
+                        )
+                        or raw.get("控股股东", ""),
+                        "actual_controller": profile.get("actual_controller", "")
+                        or raw.get("实际控制人", ""),
+                        "final_controller": profile.get("final_controller", "")
+                        or raw.get("最终控制人", ""),
+                        "chairman": profile.get("chairman", "")
+                        or raw.get("董事长", ""),
+                        "secretary": profile.get("secretary", "")
+                        or raw.get("董事会秘书", ""),
+                        "legal_representative": profile.get("legal_representative", "")
+                        or raw.get("法人代表", ""),
+                        "general_manager": profile.get("general_manager", "")
+                        or raw.get("总经理", ""),
+                        "registered_capital": profile.get("registered_capital", "")
+                        or raw.get("注册资本", "")
+                        or raw.get("总股本", ""),
+                        "employee_count": profile.get("employee_count", "")
+                        or raw.get("员工人数", ""),
+                        "description": profile.get("description", "")
+                        or raw.get("公司简介", ""),
+                        "listing_date": profile.get("listing_date", "")
+                        or raw.get("上市时间", ""),
+                        "total_market_cap": profile.get("total_market_cap", "")
+                        or raw.get("总市值", ""),
+                        "circulating_market_cap": profile.get(
+                            "circulating_market_cap", ""
+                        )
+                        or raw.get("流通市值", ""),
+                        "total_shares": profile.get("total_shares", "")
+                        or raw.get("总股本", ""),
+                        "circulating_shares": profile.get("circulating_shares", "")
+                        or raw.get("流通股", ""),
+                        "website": profile.get("website", "")
+                        or raw.get("公司网址", ""),
+                        "business_scope": profile.get("business_scope", "")
+                        or raw.get("经营范围", ""),
                     }
                     for k, v in akshare_fields.items():
                         if v and not profile.get(k):
@@ -640,37 +679,37 @@ class AkShareDataSource(DataSource):
         try:
             import akshare as ak
 
-            df = _fetch(lambda: ak.stock_institute_recommend(symbol="最新投资评级"))
+            df = _fetch(lambda: ak.stock_profit_forecast_ths(symbol=symbol))
             if df is None or not isinstance(df, pd.DataFrame) or df.empty:
-                return {"error": "未找到评级数据"}
-            df_stock = self._match_code(df, "股票代码", symbol)
-            if df_stock.empty:
-                return {"error": "未找到该股票评级数据"}
-            sorted_df = df_stock.sort_values("评级日期", ascending=False)
-            latest = sorted_df.iloc[0]
-            price_history = []
-            for _, row in sorted_df.iterrows():
-                tp = row.get("目标价")
-                if pd.notna(tp):
-                    price_history.append(
-                        {
-                            "日期": str(row.get("评级日期", "")),
-                            "目标价": float(tp),
-                            "评级": str(row.get("最新评级", "")),
-                            "机构": str(row.get("评级机构", "")),
-                        }
-                    )
+                return None
+
+            latest = df.iloc[0]
             return {
-                "stock_code": str(latest.get("股票代码", "")),
-                "stock_name": str(latest.get("股票名称", "")),
-                "latest_rating": str(latest.get("最新评级", "")),
-                "target_price": float(latest.get("目标价", 0))
-                if pd.notna(latest.get("目标价"))
+                "stock_code": symbol,
+                "stock_name": "",
+                "latest_rating": None,
+                "target_price": float(latest.get("均值", 0))
+                if pd.notna(latest.get("均值"))
                 else None,
-                "rating_date": str(latest.get("评级日期", "")),
-                "industry": str(latest.get("行业", "")),
-                "data_source": "akshare",
-                "target_price_history": price_history[:30],
+                "rating_date": str(latest.get("年度", "")),
+                "industry": "",
+                "data_source": "akshare_ths",
+                "forecast_year": str(latest.get("年度", "")),
+                "org_count": int(latest.get("预测机构数", 0))
+                if pd.notna(latest.get("预测机构数"))
+                else None,
+                "eps_mean": float(latest.get("均值", 0))
+                if pd.notna(latest.get("均值"))
+                else None,
+                "eps_min": float(latest.get("最小值", 0))
+                if pd.notna(latest.get("最小值"))
+                else None,
+                "eps_max": float(latest.get("最大值", 0))
+                if pd.notna(latest.get("最大值"))
+                else None,
+                "industry_avg": float(latest.get("行业平均数", 0))
+                if pd.notna(latest.get("行业平均数"))
+                else None,
             }
         except Exception as e:
             logger.warning(f"[akshare] 获取 {symbol} 分析师评级失败: {e}")

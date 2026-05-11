@@ -65,7 +65,7 @@ const KLineChart: React.FC<Props> = ({ data, height = 340 }) => {
           }
         },
         grid: [{ left: '6%', right: '4%', top: '5%', height: '58%' }, { left: '6%', right: '4%', top: '68%', height: '16%' }],
-        xAxis: [{ type: 'category', data: dates, scale: true, boundaryGap: false, axisLabel: { rotate: 45, fontSize: 11, interval: Math.floor(dates.length / 8), formatter: (v: string) => v.slice(5) } },
+        xAxis: [{ type: 'category', data: dates, scale: true, boundaryGap: false, axisLabel: { rotate: 0, fontSize: 11, interval: Math.floor(dates.length / 8), formatter: (v: string) => v.slice(5) } },
         { type: 'category', gridIndex: 1, data: dates, axisLabel: { show: false } }],
         yAxis: [{ scale: true, splitArea: { show: true }, axisLabel: { fontSize: 11 } }, { scale: true, gridIndex: 1, show: false }],
         dataZoom: [{ type: 'inside', xAxisIndex: [0, 1], start: 30, end: 100 },
