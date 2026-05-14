@@ -139,7 +139,6 @@ function registerAllWidgets(): void {
         tags: ['估值', '深度'],
       },
       component: ({ data }: WidgetProps) => {
-        console.log('SensitivityHeatmap widget 收到 data:', data);
         return <SensitivityHeatmap symbol={data.symbol} />;
       },
     },
@@ -1021,10 +1020,10 @@ function registerAllWidgets(): void {
       component: ({ data }: WidgetProps) => {
         // 使用类型断言避免错误，因为这些字段可能不在类型定义中
         const dataAsAny = data as any;
-        
+
         // 优先使用新的季度持股数据
         const quarterlyData = dataAsAny.northbound_quarterly || [];
-        
+
         if (quarterlyData.length > 0) {
           // 显示过去5个季度的持股变化图
           const chartData = quarterlyData.map((item: any) => ({
@@ -1042,7 +1041,7 @@ function registerAllWidgets(): void {
               <div style={{ color: '#8c8c8c', fontSize: 11, textAlign: 'center', marginBottom: 12 }}>
                 ⚠️ 自2024年8月19日起，北向资金每日详细数据已不再披露，当前显示季度末持股情况
               </div>
-              
+
               {/* 持股数量趋势 */}
               <div style={{ marginBottom: 16 }}>
                 <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8 }}>持股数量（万股）</div>
@@ -1517,7 +1516,6 @@ function registerAllWidgets(): void {
   ];
 
   widgetRegistry.registerAll(registrations);
-  console.log(`[WidgetRegistry] 已注册 ${widgetRegistry.count} 个Widget组件 (已实现: ${widgetRegistry.getImplemented().length})`);
 }
 
 export { registerAllWidgets };

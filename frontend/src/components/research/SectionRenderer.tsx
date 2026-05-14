@@ -20,7 +20,6 @@ const SectionRenderer: React.FC<Props> = ({ section, maxLevel = 4, showTables = 
     if (!content) return null;
     const lines = content.split('\n');
     const elements: React.ReactNode[] = [];
-    let inBlockquote = false;
     let blockquoteLines: string[] = [];
 
     const flushBlockquote = () => {
@@ -40,7 +39,6 @@ const SectionRenderer: React.FC<Props> = ({ section, maxLevel = 4, showTables = 
         );
         blockquoteLines = [];
       }
-      inBlockquote = false;
     };
 
     for (const line of lines) {
@@ -52,7 +50,6 @@ const SectionRenderer: React.FC<Props> = ({ section, maxLevel = 4, showTables = 
       }
 
       if (trimmed.startsWith('>')) {
-        inBlockquote = true;
         blockquoteLines.push(trimmed);
         continue;
       }
@@ -98,23 +95,28 @@ const SectionRenderer: React.FC<Props> = ({ section, maxLevel = 4, showTables = 
     return elements;
   };
 
+  const hasSubsections = section.subsections && section.subsections.length > 0;
+
   return (
     <div>
       {section.title && section.level <= maxLevel && (
-        <Title level={Math.min(section.level + 1, 5) as any} style={{ marginTop: 16 }}>
+        <Title level={Math.min(section.level + 1, 5) as 1 | 2 | 3 | 4 | 5} style={{ marginTop: 16 }}>
           {section.title}
         </Title>
       )}
 
-      {renderContent(section.content)}
-
-      {showTables && section.tables.map((table, idx) => (
-        <MarkdownTable key={`table-${idx}`} table={table} />
-      ))}
-
-      {section.subsections.map((sub, idx) => (
-        <SectionRenderer key={`sub-${idx}`} section={sub} maxLevel={maxLevel} showTables={showTables} />
-      ))}
+      {hasSubsections ? (
+        section.subsections.map((sub, idx) => (
+          <SectionRenderer key={`sub-${idx}`} section={sub} maxLevel={maxLevel} showTables={showTables} />
+        ))
+      ) : (
+        <>
+          {renderContent(section.content)}
+          {showTables && section.tables.map((table, idx) => (
+            <MarkdownTable key={`table-${idx}`} table={table} />
+          ))}
+        </>
+      )}
     </div>
   );
 };

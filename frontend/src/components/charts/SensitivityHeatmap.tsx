@@ -16,9 +16,7 @@ const SensitivityHeatmap: React.FC<SensitivityHeatmapProps> = ({ symbol, title =
   const [dcfData, setDcfData] = useState<DCFResult | null>(null);
 
   useEffect(() => {
-    console.log('SensitivityHeatmap 组件收到 symbol:', symbol);
     if (!symbol) {
-      console.log('SensitivityHeatmap: symbol 为空，使用默认数据');
       // 使用默认数据
       setDcfData({
         symbol: 'N/A',

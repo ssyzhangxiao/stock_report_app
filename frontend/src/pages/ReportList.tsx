@@ -30,7 +30,7 @@ import {
   type ReportInfo,
 } from '../api/stockApi';
 
-const { Title, Text, Paragraph } = Typography;
+const { Title, Text } = Typography;
 
 interface ReportListProps {
   onBack?: () => void;

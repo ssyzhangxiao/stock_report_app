@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card, Typography, Alert, Tag, Space, Divider } from 'antd';
-import { WarningOutlined, CheckCircleOutlined, InfoCircleOutlined, FileTextOutlined } from '@ant-design/icons';
+import { FileTextOutlined } from '@ant-design/icons';
 
 const { Title, Text, Paragraph } = Typography;
 

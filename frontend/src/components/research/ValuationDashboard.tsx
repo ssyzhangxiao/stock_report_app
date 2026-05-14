@@ -1,8 +1,6 @@
 import React from 'react';
-import { Card, Row, Col, Typography, Tag, Statistic, Progress } from 'antd';
-import { ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons';
+import { Card, Row, Col, Typography, Tag } from 'antd';
 import ReactECharts from 'echarts-for-react';
-import MarkdownTable from './MarkdownTable';
 import SectionRenderer from './SectionRenderer';
 import type { SectionData } from '../../types/research';
 
@@ -235,11 +233,23 @@ const ValuationDashboard: React.FC<Props> = ({ valuationMoat, valuationHistory }
       {renderDCFSummary()}
       {renderPEHistoryChart()}
 
-      {valuationMoat && <SectionRenderer section={valuationMoat} />}
+      {valuationMoat && valuationMoat.subsections && valuationMoat.subsections.length > 0 ? (
+        valuationMoat.subsections.map((sub, idx) => (
+          <SectionRenderer key={`vm-sub-${idx}`} section={sub} />
+        ))
+      ) : (
+        valuationMoat && <SectionRenderer section={valuationMoat} />
+      )}
       {valuationHistory && valuationHistory.content && (
         <Card style={{ borderRadius: 10, marginBottom: 16 }} styles={{ body: { padding: 16 } }}>
           <Title level={5}>📜 历史估值详情</Title>
-          <SectionRenderer section={valuationHistory} />
+          {valuationHistory.subsections && valuationHistory.subsections.length > 0 ? (
+            valuationHistory.subsections.map((sub, idx) => (
+              <SectionRenderer key={`vh-sub-${idx}`} section={sub} />
+            ))
+          ) : (
+            <SectionRenderer section={valuationHistory} />
+          )}
         </Card>
       )}
     </div>

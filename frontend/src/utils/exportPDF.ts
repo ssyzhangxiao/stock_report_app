@@ -137,7 +137,7 @@ export const exportToPDF = async (
     const pageHeight = 297; // A4 高度 (mm)
     const imgHeight = (canvas.height * imgWidth) / canvas.width;
     const marginTop = 25; // 顶部边距
-    
+
     // 创建 PDF
     const pdf = new jsPDF({
       orientation: 'portrait',
@@ -150,17 +150,17 @@ export const exportToPDF = async (
     // 背景渐变效果（通过矩形模拟）
     pdf.setFillColor(102, 126, 234);
     pdf.rect(0, 0, imgWidth, pageHeight, 'F');
-    
+
     // 标题区域背景（白色圆角矩形）
     pdf.setFillColor(255, 255, 255);
     pdf.roundedRect(15, 60, imgWidth - 30, 120, 8, 8, 'F');
-    
+
     // 主标题
     pdf.setFontSize(28);
     pdf.setTextColor(51, 51, 51);
     pdf.setFont('helvetica', 'bold');
     pdf.text(title, imgWidth / 2, 100, { align: 'center' });
-    
+
     // 股票代码（如果有）
     if (symbol) {
       pdf.setFontSize(18);
@@ -168,23 +168,23 @@ export const exportToPDF = async (
       pdf.setFont('helvetica', 'normal');
       pdf.text(`股票代码：${symbol}`, imgWidth / 2, 125, { align: 'center' });
     }
-    
+
     // 分隔线
     pdf.setDrawColor(102, 126, 234);
     pdf.setLineWidth(0.5);
     pdf.line(imgWidth / 2 - 40, 135, imgWidth / 2 + 40, 135);
-    
+
     // 生成时间
     pdf.setFontSize(13);
     pdf.setTextColor(100, 100, 100);
     pdf.setFont('helvetica', 'normal');
     pdf.text(`生成时间：${dayjs().format('YYYY-MM-DD HH:mm:ss')}`, imgWidth / 2, 150, { align: 'center' });
-    
+
     // 数据来源说明
     pdf.setFontSize(11);
     pdf.setTextColor(150, 150, 150);
     pdf.text('数据来源：AkShare | 通义千问AI分析 | 技能化架构', imgWidth / 2, 165, { align: 'center' });
-    
+
     // 免责声明（底部）
     pdf.setFontSize(9);
     pdf.setTextColor(180, 180, 180);
@@ -214,11 +214,11 @@ export const exportToPDF = async (
     const totalPages = pdf.getNumberOfPages();
     for (let i = 2; i <= totalPages; i++) {
       pdf.setPage(i);
-      
+
       // 页脚背景条
       pdf.setFillColor(245, 247, 250);
       pdf.rect(0, pageHeight - 15, imgWidth, 15, 'F');
-      
+
       // 页码信息
       pdf.setFontSize(9);
       pdf.setTextColor(120, 120, 120);
@@ -228,11 +228,11 @@ export const exportToPDF = async (
         pageHeight - 6,
         { align: 'center' }
       );
-      
+
       // 左侧标识
       pdf.setFontSize(8);
       pdf.text('股票智能分析系统', 10, pageHeight - 6);
-      
+
       // 右侧日期
       pdf.text(dayjs().format('YYYY-MM-DD'), imgWidth - 10, pageHeight - 6, { align: 'right' });
     }
@@ -244,8 +244,6 @@ export const exportToPDF = async (
     removeLoadingMessage(loadingElement);
     loadingElement = showLoadingMessage('✅ PDF 导出成功！');
     setTimeout(() => removeLoadingMessage(loadingElement), 2000);
-
-    console.log('PDF 导出成功:', filename, `(共 ${totalPages} 页)`);
   } catch (error) {
     // 移除加载提示并显示错误消息
     removeLoadingMessage(loadingElement);
@@ -270,7 +268,7 @@ export const exportToImage = async (
 
   try {
     loadingElement = showLoadingMessage('🖼️ 正在生成高清图片...');
-    
+
     const element = document.getElementById(elementId);
     if (!element) {
       throw new Error(`未找到 ID 为 "${elementId}" 的元素`);
@@ -299,13 +297,11 @@ export const exportToImage = async (
     removeLoadingMessage(loadingElement);
     loadingElement = showLoadingMessage('✅ 图片导出成功！');
     setTimeout(() => removeLoadingMessage(loadingElement), 2000);
-
-    console.log('图片导出成功:', filename);
   } catch (error) {
     removeLoadingMessage(loadingElement);
     loadingElement = showLoadingMessage('❌ 图片导出失败，请重试');
     setTimeout(() => removeLoadingMessage(loadingElement), 3000);
-    
+
     console.error('图片导出失败:', error);
     throw error;
   }

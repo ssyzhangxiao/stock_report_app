@@ -1,11 +1,10 @@
 import React from 'react';
-import { Card, Row, Col, Typography, Tag, Space, Badge } from 'antd';
-import { WarningOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
-import MarkdownTable from './MarkdownTable';
+import { Card, Row, Col, Typography, Tag, Space } from 'antd';
+import { WarningOutlined } from '@ant-design/icons';
 import SectionRenderer from './SectionRenderer';
 import type { SectionData } from '../../types/research';
 
-const { Title, Text, Paragraph } = Typography;
+const { Title, Text } = Typography;
 
 interface Props {
   section: SectionData;
@@ -24,7 +23,6 @@ const RiskMatrix: React.FC<Props> = ({ section }) => {
 
   const extractRiskItems = () => {
     const items: { name: string; level: string; probability: string; impact: string }[] = [];
-    const content = section.content;
 
     const riskTable = section.tables[0];
     if (riskTable && riskTable.headers.length > 0) {
@@ -103,7 +101,13 @@ const RiskMatrix: React.FC<Props> = ({ section }) => {
         </Card>
       )}
 
-      <SectionRenderer section={section} />
+      {section.subsections && section.subsections.length > 0 ? (
+        section.subsections.map((sub, idx) => (
+          <SectionRenderer key={`sub-${idx}`} section={sub} />
+        ))
+      ) : (
+        <SectionRenderer section={section} />
+      )}
     </div>
   );
 };

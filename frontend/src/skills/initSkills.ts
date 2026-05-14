@@ -258,13 +258,6 @@ const modes: AnalysisMode[] = [
 ];
 
 export function initSkills(): void {
-  console.log('🔧 初始化技能系统...');
-
   skillRegistry.registerSkills(skills);
-  console.log(`✅ 已注册 ${skills.length} 个技能`);
-
   modes.forEach(mode => skillRegistry.registerMode(mode));
-  console.log(`✅ 已注册 ${modes.length} 个分析模式`);
-
-  console.log('🎉 技能系统初始化完成');
 }

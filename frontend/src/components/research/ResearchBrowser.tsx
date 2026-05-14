@@ -30,32 +30,34 @@ const ResearchBrowser: React.FC<Props> = ({ onSelect }) => {
   }, []);
 
   const fetchReports = async () => {
-    setLoading(true);
-    try {
-      const res = await getResearchReports();
-      setReports(res.reports);
-    } catch {
-      setReports([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  setLoading(true);
+  try {
+    const res = await getResearchReports();
+    setReports(res.reports);
+  } catch (err) {
+    console.error('获取研究报告失败:', err);
+    setReports([]);
+  } finally {
+    setLoading(false);
+  }
+};
 
-  const handleSearch = async (value: string) => {
-    if (!value.trim()) {
-      fetchReports();
-      return;
-    }
-    setLoading(true);
-    try {
-      const res = await searchResearchReports(value.trim());
-      setReports(res.reports);
-    } catch {
-      setReports([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+const handleSearch = async (value: string) => {
+  if (!value.trim()) {
+    fetchReports();
+    return;
+  }
+  setLoading(true);
+  try {
+    const res = await searchResearchReports(value.trim());
+    setReports(res.reports);
+  } catch (err) {
+    console.error('搜索研究报告失败:', err);
+    setReports([]);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const getSignalColor = (rating: string) => {
     for (const [key, color] of Object.entries(signalColorMap)) {

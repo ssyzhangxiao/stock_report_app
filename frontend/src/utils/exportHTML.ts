@@ -209,8 +209,6 @@ export const exportToHTML = async (
         document.body.removeChild(successMessage);
       }
     }, 2000);
-
-    console.log('HTML 报告导出成功:', filename);
   } catch (error) {
     // 移除加载提示并显示错误消息
     const loadingMessage = document.querySelector('div[style*="z-index: 99999"]');

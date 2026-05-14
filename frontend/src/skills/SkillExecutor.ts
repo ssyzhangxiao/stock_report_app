@@ -86,9 +86,6 @@ export class SkillExecutor {
       throw new Error(`分析模式 ${modeId} 不存在`);
     }
 
-    console.log(`开始执行分析模式: ${mode.name}`);
-    console.log(`包含技能: ${mode.skills.join(', ')}`);
-
     const results = await this.executeSkillChain(mode.skills);
 
     const report: AnalysisReport = {

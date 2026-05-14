@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Tabs, Spin, Typography, Button, message, Breadcrumb } from 'antd';
 import { ArrowLeftOutlined } from '@ant-design/icons';
 import { getResearchReport } from '../../api/researchApi';
-import type { ResearchReport, ResearchSectionKey } from '../../types/research';
+import type { ResearchReport, ResearchSectionKey, SectionData } from '../../types/research';
 import { RESEARCH_TABS } from '../../types/research';
 import ExecutiveSummaryCard from './ExecutiveSummaryCard';
 import SectionRenderer from './SectionRenderer';
@@ -68,7 +68,7 @@ const ResearchViewer: React.FC<Props> = ({ directory, onBack }) => {
       default: {
         const section = report[key as keyof ResearchReport];
         if (section && typeof section === 'object' && 'content' in section) {
-          return <SectionRenderer section={section as any} />;
+          return <SectionRenderer section={section as SectionData} />;
         }
         return <Text type="secondary">该章节暂无数据</Text>;
       }
