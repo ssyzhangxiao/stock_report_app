@@ -7,6 +7,31 @@ import type {
   PeerCompany,
 } from '../types/stock';
 
+// 报告服务相关类型
+export interface ReportInfo {
+  code: string;
+  name: string;
+  stock_code: string;
+  stock_name: string;
+  file_path: string;
+  modified_time: string;
+  size: number;
+}
+
+export interface RenderRequest {
+  force?: boolean;
+  output_format?: 'pdf' | 'html' | 'both';
+}
+
+export interface RenderResponse {
+  success: boolean;
+  message: string;
+  code: string;
+  html_path?: string;
+  pdf_path?: string;
+  generation_time: number;
+}
+
 const api = axios.create({
   baseURL: '/api',
   timeout: 180000,
@@ -14,6 +39,45 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+// 报告服务API (连接到 :8001)
+const reportApi = axios.create({
+  baseURL: 'http://localhost:8001/api/v1',
+  timeout: 180000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+reportApi.interceptors.response.use(
+  (response) => {
+    return response.data;
+  },
+  (error) => {
+    const errorData = error.response?.data;
+    let message = '请求失败，请稍后重试';
+
+    if (errorData) {
+      if (typeof errorData === 'string') {
+        message = errorData;
+      } else if (errorData.message) {
+        message = errorData.message;
+      } else if (errorData.detail) {
+        if (typeof errorData.detail === 'string') {
+          message = errorData.detail;
+        } else if (errorData.detail.message) {
+          message = errorData.detail.message;
+        }
+      }
+    }
+
+    if (import.meta.env.DEV) {
+      console.error('Report API Error:', message);
+    }
+
+    return Promise.reject(new Error(message));
+  }
+);
 
 api.interceptors.request.use(
   (config) => {
@@ -285,4 +349,25 @@ export const getCapitalOperation = async (symbol: string): Promise<CapitalOperat
   return response as unknown as CapitalOperationResult;
 };
 
+// 报告服务API函数
+export const getReportList = async (): Promise<ReportInfo[]> => {
+  const response = await reportApi.get('/reports');
+  return response as unknown as ReportInfo[];
+};
+
+export const renderReport = async (code: string, request: RenderRequest = {}): Promise<RenderResponse> => {
+  const response = await reportApi.post(`/render/${code}`, request);
+  return response as unknown as RenderResponse;
+};
+
+export const getReportPreview = async (code: string): Promise<{ html: string }> => {
+  const response = await reportApi.get(`/reports/${code}/preview`);
+  return response as unknown as { html: string };
+};
+
+export const getReportDownloadUrl = (code: string, format: 'pdf' | 'html' = 'pdf'): string => {
+  return `http://localhost:8001/api/v1/reports/${code}/download?format=${format}`;
+};
+
+export { api, reportApi };
 export default api;

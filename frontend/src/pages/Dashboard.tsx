@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Input, Button, Spin, message, Card, Row, Col, Typography, Alert, Space, Tag, Tabs } from 'antd';
-import { SearchOutlined, DownloadOutlined, RiseOutlined, FallOutlined } from '@ant-design/icons';
+import { SearchOutlined, DownloadOutlined, RiseOutlined, FallOutlined, FileTextOutlined } from '@ant-design/icons';
 import { getSmartAnalysis } from '../api/stockApi';
 import type { StockAnalysisResponse, SmartAnalysisResult } from '../types/stock';
 import EnhancedAnalysis from '../components/cards/EnhancedAnalysis';
@@ -15,6 +15,7 @@ import type { ReportTemplateType } from '../utils/reportTemplates';
 import { getAnalysisModeById } from '../utils/analysisModeTemplates';
 
 import { registerAllWidgets, DynamicWidgetRenderer, widgetRegistry } from '../widgets';
+import ReportList from './ReportList';
 
 const { Title, Text } = Typography;
 
@@ -55,9 +56,12 @@ const getStyles = (_theme: 'light' | 'dark') => ({
   },
 });
 
+type ViewMode = 'analysis' | 'reports';
+
 const Dashboard: React.FC = () => {
   const { theme } = useTheme();
   const styles = getStyles(theme);
+  const [viewMode, setViewMode] = useState<ViewMode>('analysis');
   const [symbol, setSymbol] = useState<string>('600519');
   const [loading, setLoading] = useState<boolean>(false);
   const [data, setData] = useState<StockAnalysisResponse | null>(null);
@@ -173,7 +177,7 @@ const Dashboard: React.FC = () => {
       {/* Header */}
       <Card style={styles.headerCard} styles={{ body: { padding: '24px 32px' } }}>
         <Row align="middle" justify="space-between" gutter={[16, 16]}>
-          <Col xs={24} md={12}>
+          <Col xs={24} md={16}>
             <Space>
               <div style={styles.headerTitle}>📊 股票智能分析系统</div>
               <Tag color="blue" style={{ fontSize: 11, padding: '2px 10px', border: 'none', background: 'rgba(255,255,255,0.2)', color: '#fff' }}>⚡ 组件系统就绪 ({widgetRegistry.count})</Tag>
@@ -182,156 +186,196 @@ const Dashboard: React.FC = () => {
             <div style={styles.headerSub}>多源数据驱动的智能分析平台 · 技能化架构 · 可视化报告</div>
             <div style={styles.headerDate}>📅 报告日期：{today}</div>
           </Col>
-          <Col xs={24} md={12}>
-            <Space.Compact style={{ width: '100%' }}>
-              <Input
-                placeholder="输入股票代码（如 600519）"
-                value={symbol}
-                onChange={(e) => setSymbol(e.target.value)}
-                onKeyDown={handleKeyDown}
-                prefix={<SearchOutlined style={{ color: 'rgba(255,255,255,0.6)' }} />}
-                style={{ width: '55%', background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff' }}
-                allowClear
-              />
-              <Button type="primary" onClick={handleAnalyze} loading={loading}
-                style={{ background: '#fff', borderColor: '#fff', color: '#667eea', fontWeight: 600 }}>
-                开始分析
-              </Button>
-              {data && (
-                <>
-                  <Button icon={<DownloadOutlined />} onClick={handleExportPDF}
-                    style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff' }}>
-                    导出 PDF
+          <Col xs={24} md={8}>
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <Row gutter={8} justify="end">
+                <Col>
+                  <Button
+                    type={viewMode === 'analysis' ? 'primary' : 'default'}
+                    onClick={() => setViewMode('analysis')}
+                    style={{
+                      background: viewMode === 'analysis' ? '#fff' : 'rgba(255,255,255,0.15)',
+                      borderColor: viewMode === 'analysis' ? '#fff' : 'rgba(255,255,255,0.3)',
+                      color: viewMode === 'analysis' ? '#667eea' : '#fff',
+                    }}
+                  >
+                    <SearchOutlined style={{ marginRight: 4 }} />
+                    股票分析
                   </Button>
-                  <Button onClick={handleExportHTML}
-                    style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff' }}>
-                    导出 HTML
+                </Col>
+                <Col>
+                  <Button
+                    type={viewMode === 'reports' ? 'primary' : 'default'}
+                    onClick={() => setViewMode('reports')}
+                    style={{
+                      background: viewMode === 'reports' ? '#fff' : 'rgba(255,255,255,0.15)',
+                      borderColor: viewMode === 'reports' ? '#fff' : 'rgba(255,255,255,0.3)',
+                      color: viewMode === 'reports' ? '#667eea' : '#fff',
+                    }}
+                  >
+                    <FileTextOutlined style={{ marginRight: 4 }} />
+                    研究报告
                   </Button>
-                </>
+                </Col>
+              </Row>
+              {viewMode === 'analysis' && (
+                <Space.Compact style={{ width: '100%' }}>
+                  <Input
+                    placeholder="输入股票代码（如 600519）"
+                    value={symbol}
+                    onChange={(e) => setSymbol(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    prefix={<SearchOutlined style={{ color: 'rgba(255,255,255,0.6)' }} />}
+                    style={{ width: '55%', background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff' }}
+                    allowClear
+                  />
+                  <Button type="primary" onClick={handleAnalyze} loading={loading}
+                    style={{ background: '#fff', borderColor: '#fff', color: '#667eea', fontWeight: 600 }}>
+                    开始分析
+                  </Button>
+                  {data && (
+                    <>
+                      <Button icon={<DownloadOutlined />} onClick={handleExportPDF}
+                        style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff' }}>
+                        导出PDF
+                      </Button>
+                      <Button onClick={handleExportHTML}
+                        style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff' }}>
+                        导出HTML
+                      </Button>
+                    </>
+                  )}
+                </Space.Compact>
               )}
-            </Space.Compact>
+            </Space>
           </Col>
         </Row>
       </Card>
 
       {/* Main Content */}
       <div style={styles.contentArea}>
-        {/* Loading */}
-        {loading && (
-          <Card style={{ ...styles.dataCard, padding: 0 }}>
-            <div style={{ textAlign: 'center', padding: '80px 0' }}>
-              <Spin size="large" tip="正在获取数据并生成分析报告..." />
-            </div>
-          </Card>
-        )}
-
-        {/* Empty State */}
-        {!loading && !data && (
-          <div style={styles.emptyState}>
-            <div style={{ fontSize: 72, marginBottom: 16, opacity: 0.6 }}></div>
-            <Title level={3} style={{ margin: 0 }}>股票智能分析系统</Title>
-            <Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
-              输入股票代码，点击「开始分析」，获取深度分析报告
-            </Text>
-            <div style={{ marginTop: 32 }}>
-              <Text type="secondary" style={{ fontSize: 14 }}>快速选择：</Text>
-              <div style={{ marginTop: 16, display: 'flex', gap: 12, justifyContent: 'center' }}>
-                {[
-                  { code: '600519', name: '贵州茅台' },
-                  { code: '000001', name: '平安银行' },
-                  { code: '300750', name: '宁德时代' },
-                ].map((s) => (
-                  <Button key={s.code} size="middle"
-                    onClick={() => { setSymbol(s.code); }}
-                    style={{ borderRadius: 6 }}>
-                    {s.code} {s.name}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Data Display */}
-        {!loading && data && (
-          <div id="report-content">
-            {/* Report Template Selector */}
-            <ReportTemplateSelector
-              selectedTemplate={selectedTemplate}
-              onSelect={setSelectedTemplate}
-            />
-
-            {/* Progress Tracker */}
-            {showProgress && progressResults.length > 0 && (
-              <ProgressTracker results={progressResults} />
+        {viewMode === 'analysis' ? (
+          <>
+            {/* Loading */}
+            {loading && (
+              <Card style={{ ...styles.dataCard, padding: 0 }}>
+                <div style={{ textAlign: 'center', padding: '80px 0' }}>
+                  <Spin size="large" tip="正在获取数据并生成分析报告..." />
+                </div>
+              </Card>
             )}
 
-            {/* Source Alerts */}
-            {data.data_source === 'unavailable' && (
-              <Alert message="数据获取失败" description="所有数据源均不可用" type="error" showIcon style={{ marginBottom: 16, borderRadius: 8 }} />
-            )}
-            {(data.data_source === 'sina' || data.data_source === 'eastmoney') && (
-              <Alert message={`数据源：${data.data_source === 'sina' ? '新浪财经' : '东方财富'}`}
-                description={data.data_source === 'sina' ? '行情/财务来自新浪；风险/资金/新闻来自东财' : '全量数据来自东方财富'}
-                type="info" showIcon style={{ marginBottom: 16, borderRadius: 8 }} />
-            )}
-
-            {/* Stats Row */}
-            <Card style={styles.dataCard} styles={{ body: { padding: '16px 24px' } }}>
-              <Row gutter={[16, 16]}>
-                <StatCell label="代码" value={<Tag color="blue" style={{ fontSize: 13, fontWeight: 600 }}>{data.symbol}</Tag>} />
-                <StatCell label="最新价" value={<span style={{ color: priceColor, fontWeight: 700 }}>¥{data.latest_price?.toFixed(2) ?? '--'}</span>} color={priceColor} />
-                <StatCell label="涨跌幅" value={<span style={{ color: priceColor }}><ArrowIcon style={{ marginRight: 2 }} />{pctChg != null ? `${pctChg >= 0 ? '+' : ''}${pctChg.toFixed(2)}%` : '--'}</span>} color={priceColor} />
-                <StatCell label="PE" value={data.valuation.pe_ratio ?? '--'} />
-                <StatCell label="PB" value={data.valuation.pb_ratio ?? '--'} />
-                <StatCell label="市值" value={data.valuation.market_cap ?? '--'} />
-                <StatCell label="行业PE" value={data.valuation.industry_pe ?? '--'} />
-              </Row>
-            </Card>
-
-            {/* 增强智能分析 */}
-            {smartAnalysisData && (
-              <EnhancedAnalysis smartAnalysis={smartAnalysisData.smart_analysis} />
-            )}
-
-            {/* 使用标签页布局的主内容 */}
-            {(() => {
-              const modeTemplate = getAnalysisModeById(selectedMode);
-              if (!modeTemplate) return null;
-
-              const tabItems = Object.values(modeTemplate.tabs).map((tab: any) => ({
-                key: tab.id,
-                label: tab.name,
-              }));
-
-              return (
-                <div style={{ marginTop: 16 }}>
-                  <Tabs
-                    activeKey={activeTab}
-                    onChange={setActiveTab}
-                    items={tabItems}
-                    type="card"
-                  />
-                  <div style={{ marginTop: 16 }}>
-                    <Row gutter={[16, 16]}>
-                      {modeTemplate.tabs[activeTab]?.layout.map((widget: any) => {
-                        const widgetContent = renderWidget(widget.i);
-                        if (!widgetContent) return null;
-                        const span = Math.round((widget.w || 40) * 24 / 40);
-                        return (
-                          <Col key={widget.i} span={span}>
-                            <Card style={{ ...styles.dataCard, marginBottom: 0, height: '100%' }}>
-                              {widgetContent}
-                            </Card>
-                          </Col>
-                        );
-                      })}
-                    </Row>
+            {/* Empty State */}
+            {!loading && !data && (
+              <div style={styles.emptyState}>
+                <div style={{ fontSize: 72, marginBottom: 16, opacity: 0.6 }}></div>
+                <Title level={3} style={{ margin: 0 }}>股票智能分析系统</Title>
+                <Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
+                  输入股票代码，点击「开始分析」，获取深度分析报告
+                </Text>
+                <div style={{ marginTop: 32 }}>
+                  <Text type="secondary" style={{ fontSize: 14 }}>快速选择：</Text>
+                  <div style={{ marginTop: 16, display: 'flex', gap: 12, justifyContent: 'center' }}>
+                    {[
+                      { code: '600519', name: '贵州茅台' },
+                      { code: '000001', name: '平安银行' },
+                      { code: '300750', name: '宁德时代' },
+                    ].map((s) => (
+                      <Button key={s.code} size="middle"
+                        onClick={() => { setSymbol(s.code); }}
+                        style={{ borderRadius: 6 }}>
+                        {s.code} {s.name}
+                      </Button>
+                    ))}
                   </div>
                 </div>
-              );
-            })()}
-          </div>
+              </div>
+            )}
+
+            {/* Data Display */}
+            {!loading && data && (
+              <div id="report-content">
+                {/* Report Template Selector */}
+                <ReportTemplateSelector
+                  selectedTemplate={selectedTemplate}
+                  onSelect={setSelectedTemplate}
+                />
+
+                {/* Progress Tracker */}
+                {showProgress && progressResults.length > 0 && (
+                  <ProgressTracker results={progressResults} />
+                )}
+
+                {/* Source Alerts */}
+                {data.data_source === 'unavailable' && (
+                  <Alert message="数据获取失败" description="所有数据源均不可用" type="error" showIcon style={{ marginBottom: 16, borderRadius: 8 }} />
+                )}
+                {(data.data_source === 'sina' || data.data_source === 'eastmoney') && (
+                  <Alert message={`数据源：${data.data_source === 'sina' ? '新浪财经' : '东方财富'}`}
+                    description={data.data_source === 'sina' ? '行情/财务来自新浪；风险/资金/新闻来自东财' : '全量数据来自东方财富'}
+                    type="info" showIcon style={{ marginBottom: 16, borderRadius: 8 }} />
+                )}
+
+                {/* Stats Row */}
+                <Card style={styles.dataCard} styles={{ body: { padding: '16px 24px' } }}>
+                  <Row gutter={[16, 16]}>
+                    <StatCell label="代码" value={<Tag color="blue" style={{ fontSize: 13, fontWeight: 600 }}>{data.symbol}</Tag>} />
+                    <StatCell label="最新价" value={<span style={{ color: priceColor, fontWeight: 700 }}>¥{data.latest_price?.toFixed(2) ?? '--'}</span>} color={priceColor} />
+                    <StatCell label="涨跌幅" value={<span style={{ color: priceColor }}><ArrowIcon style={{ marginRight: 2 }} />{pctChg != null ? `${pctChg >= 0 ? '+' : ''}${pctChg.toFixed(2)}%` : '--'}</span>} color={priceColor} />
+                    <StatCell label="PE" value={data.valuation.pe_ratio ?? '--'} />
+                    <StatCell label="PB" value={data.valuation.pb_ratio ?? '--'} />
+                    <StatCell label="市值" value={data.valuation.market_cap ?? '--'} />
+                    <StatCell label="行业PE" value={data.valuation.industry_pe ?? '--'} />
+                  </Row>
+                </Card>
+
+                {/* 增强智能分析 */}
+                {smartAnalysisData && (
+                  <EnhancedAnalysis smartAnalysis={smartAnalysisData.smart_analysis} />
+                )}
+
+                {/* 使用标签页布局的主内容 */}
+                {(() => {
+                  const modeTemplate = getAnalysisModeById(selectedMode);
+                  if (!modeTemplate) return null;
+
+                  const tabItems = Object.values(modeTemplate.tabs).map((tab: any) => ({
+                    key: tab.id,
+                    label: tab.name,
+                  }));
+
+                  return (
+                    <div style={{ marginTop: 16 }}>
+                      <Tabs
+                        activeKey={activeTab}
+                        onChange={setActiveTab}
+                        items={tabItems}
+                        type="card"
+                      />
+                      <div style={{ marginTop: 16 }}>
+                        <Row gutter={[16, 16]}>
+                          {modeTemplate.tabs[activeTab]?.layout.map((widget: any) => {
+                            const widgetContent = renderWidget(widget.i);
+                            if (!widgetContent) return null;
+                            const span = Math.round((widget.w || 40) * 24 / 40);
+                            return (
+                              <Col key={widget.i} span={span}>
+                                <Card style={{ ...styles.dataCard, marginBottom: 0, height: '100%' }}>
+                                  {widgetContent}
+                                </Card>
+                              </Col>
+                            );
+                          })}
+                        </Row>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+          </>
+        ) : (
+          <ReportList />
         )}
 
         {/* Footer */}
